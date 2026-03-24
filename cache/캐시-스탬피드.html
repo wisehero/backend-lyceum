@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>캐시 스탬피드 — 장애 대시보드</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;900&family=Outfit:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../common.css">
+<style>
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 30% 20%,rgba(0,212,255,.06) 0%,transparent 50%),radial-gradient(ellipse at 70% 80%,rgba(255,51,68,.04) 0%,transparent 50%);pointer-events:none;z-index:0}
+
+/* ── HERO RED THEME OVERRIDES ── */
+.hero-beacon{width:100px;min-height:100px;border-radius:50%;background:radial-gradient(circle,var(--red) 0%,rgba(255,51,68,.3) 40%,transparent 70%);display:flex;align-items:center;justify-content:center;margin-bottom:32px;animation:beaconPulse 3s ease-in-out infinite;position:relative}
+.hero-beacon::before{content:'';position:absolute;inset:-20px;border-radius:50%;border:2px solid var(--red-dim);animation:beaconRing 3s ease-in-out infinite}
+.hero-beacon::after{content:'';position:absolute;inset:-40px;border-radius:50%;border:1px solid rgba(255,51,68,.15);animation:beaconRing 3s ease-in-out infinite .5s}
+@keyframes beaconPulse{0%,100%{transform:scale(1);box-shadow:0 0 40px rgba(255,51,68,.4)}50%{transform:scale(1.05);box-shadow:0 0 80px rgba(255,51,68,.6)}}
+.htitle .gr{background:linear-gradient(135deg,var(--red),var(--amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 20px rgba(255,51,68,.3))}
+.hbtn{min-height:48px;padding:14px 40px;border:2px solid var(--red);border-radius:var(--r-lg);background:transparent;color:var(--red);font-family:var(--font-body);font-size:15px;font-weight:700;cursor:pointer;transition:all .3s;letter-spacing:.5px}
+.hbtn:hover{background:var(--red);color:#fff;box-shadow:var(--glow-red);transform:translateY(-2px)}
+.hero-stat .num{font-family:var(--font-mono);font-size:28px;font-weight:700;color:var(--red)}
+
+/* ── STAMPEDE VISUALIZER ── */
+.stampede-viz{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px;position:relative;overflow:hidden}
+.stampede-viz::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.02) 2px,rgba(0,212,255,.02) 4px);pointer-events:none}
+
+.sv-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.sv-title{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);letter-spacing:1px}
+.sv-status{font-family:var(--font-mono);font-size:11px;padding:3px 10px;border-radius:12px;font-weight:700}
+.sv-status.ok{color:var(--green);background:var(--green-pale);border:1px solid var(--green-dim)}
+.sv-status.danger{color:var(--red);background:var(--red-pale);border:1px solid var(--red-dim);animation:statusBlink 1s ease-in-out infinite}
+@keyframes statusBlink{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* TTL gauge */
+.sv-gauge{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+.sv-gauge-label{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);min-width:36px}
+.sv-gauge-track{flex:1;height:14px;background:var(--surface);border-radius:7px;overflow:hidden;border:1px solid var(--border)}
+.sv-gauge-fill{height:100%;border-radius:7px;transition:width .08s linear;background:linear-gradient(90deg,var(--green),var(--cyan))}
+.sv-gauge-fill.mid{background:linear-gradient(90deg,var(--amber),var(--amber))}
+.sv-gauge-fill.low{background:linear-gradient(90deg,var(--red),var(--amber))}
+.sv-gauge-fill.dead{background:var(--red);width:0%!important}
+.sv-gauge-val{font-family:var(--font-mono);font-size:13px;font-weight:700;min-width:50px;text-align:right}
+.sv-gauge-val.ok{color:var(--green)}
+.sv-gauge-val.warn{color:var(--amber)}
+.sv-gauge-val.crit{color:var(--red)}
+
+/* arena */
+.sv-arena{display:flex;align-items:center;justify-content:center;gap:0;min-height:160px}
+.sv-clients{display:flex;flex-direction:column;gap:8px;z-index:2}
+.sv-cli{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);transition:all .4s;font-size:12px;font-weight:600;color:var(--text-sec)}
+.sv-cli svg{width:16px;height:16px;flex-shrink:0}
+.sv-cli.rush{border-color:var(--red);color:var(--red);background:var(--red-pale);box-shadow:var(--glow-red)}
+
+/* arrows */
+.sv-arrows{display:flex;flex-direction:column;gap:8px;min-width:200px;padding:0 8px;z-index:1}
+.sv-arr-row{height:32px;display:flex;align-items:center}
+.sv-arr{display:flex;align-items:center;width:100%;opacity:0;transition:opacity .3s}
+.sv-arr.vis{opacity:1}
+.sv-arr-line{flex:1;height:2px;background:var(--border);position:relative;border-radius:1px}
+.sv-arr-line.rush{background:var(--red);box-shadow:0 0 8px rgba(255,51,68,.4)}
+.sv-arr-dot{position:absolute;top:-4px;left:0;width:10px;height:10px;border-radius:50%;background:var(--red);opacity:0;box-shadow:0 0 8px var(--red)}
+.sv-arr-dot.run{opacity:1;animation:dotFly .5s ease-in forwards}
+@keyframes dotFly{0%{left:0}100%{left:calc(100% - 10px)}}
+.sv-arr-tip{width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:8px solid var(--border);flex-shrink:0;transition:all .3s}
+.sv-arr-tip.rush{border-left-color:var(--red);filter:drop-shadow(0 0 4px rgba(255,51,68,.5))}
+
+.sv-db{display:flex;flex-direction:column;align-items:center;gap:6px;z-index:2}
+.sv-db-box{min-width:90px;min-height:76px;border-radius:var(--r-lg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:13px;font-weight:700;background:var(--surface);border:2px solid var(--border);transition:all .4s}
+.sv-db-box svg{width:22px;height:22px}
+.sv-db-box.ok{border-color:var(--green);color:var(--green)}
+.sv-db-box.stressed{border-color:var(--red);color:var(--red);background:var(--red-pale);animation:dbShake .2s ease-in-out infinite;box-shadow:var(--glow-red)}
+@keyframes dbShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.sv-db-impact{font-family:var(--font-mono);font-size:11px;color:var(--red);font-weight:700;opacity:0;transition:opacity .3s}
+.sv-db-impact.vis{opacity:1;animation:statusBlink 1s ease-in-out infinite}
+
+.sv-log{font-family:var(--font-body);font-size:12px;color:var(--text-sec);margin-top:14px;min-height:20px;text-align:center;line-height:1.6}
+.sv-log .hl-r{color:var(--red)}.sv-log .hl-g{color:var(--green)}
+
+.sv-ctrl{display:flex;gap:8px;justify-content:center;margin-top:14px}
+.sv-btn{min-height:34px;padding:6px 20px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-sec);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer;transition:all .25s}
+.sv-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.sv-btn.pri{border-color:var(--red);color:var(--red)}
+.sv-btn.pri:hover{background:var(--red);color:#fff;box-shadow:var(--glow-red)}
+
+/* ── FORMULA ── */
+.formula-box{background:#060a14;border:1px solid var(--amber-dim);border-radius:var(--r-lg);padding:20px 24px;text-align:center;margin-bottom:16px;position:relative}
+.formula-box::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--amber-dim),transparent)}
+.formula{font-family:var(--font-mono);font-size:15px;font-weight:600;color:var(--amber);letter-spacing:.5px}
+.formula .var{color:var(--cyan)}
+
+/* ── TIMELINE ── */
+.tl-proactive{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px;overflow:hidden;position:relative}
+.tl-track{display:flex;align-items:center;height:60px;position:relative;margin:16px 0}
+.tl-segment{flex:1;height:36px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;position:relative;transition:all .5s;border:1px solid var(--border);background:var(--surface);color:var(--text-dim)}
+.tl-segment.filled{background:var(--green-pale);border-color:var(--green-dim);color:var(--green)}
+.tl-segment.filling{background:linear-gradient(90deg,var(--green-pale) var(--fill),transparent var(--fill));border-color:var(--green-dim);color:var(--green)}
+.tl-marker{position:absolute;top:-20px;font-family:var(--font-mono);font-size:10px;color:var(--amber);font-weight:700;display:flex;flex-direction:column;align-items:center}
+.tl-marker::after{content:'';width:1px;height:12px;background:var(--amber)}
+.tl-label{font-family:var(--font-mono);font-size:10px;color:var(--text-dim);display:flex;justify-content:space-between;margin-top:4px}
+
+/* ── STRATEGY FLOW ── */
+.sf-diagram{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px;position:relative;overflow:hidden}
+.sf-diagram::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.015) 2px,rgba(0,212,255,.015) 4px);pointer-events:none}
+.sf-steps{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.sf-step{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--r-md);background:var(--surface);border:1px solid transparent;transition:all .4s;opacity:.35}
+.sf-step.lit{opacity:1;border-color:var(--cyan);background:var(--cyan-pale)}
+.sf-step.lit-red{opacity:1;border-color:var(--red);background:var(--red-pale)}
+.sf-step.lit-green{opacity:1;border-color:var(--green);background:var(--green-pale)}
+.sf-num{width:22px;height:22px;border-radius:50%;background:var(--cyan);color:var(--bg);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sf-step.lit-red .sf-num{background:var(--red)}
+.sf-step.lit-green .sf-num{background:var(--green)}
+.sf-text{font-size:13px;font-weight:500}
+.sf-sub{font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-top:2px}
+.sf-ctrl{display:flex;gap:8px;justify-content:center}
+.sf-btn{min-height:34px;padding:6px 20px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-sec);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer;transition:all .25s}
+.sf-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.sf-btn.pri{border-color:var(--cyan);color:var(--cyan)}
+.sf-btn.pri:hover{background:var(--cyan);color:var(--bg)}
+
+/* ── DECISION TREE ── */
+.dtree{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:18px}
+.dq-box{background:var(--surface);border:1px solid var(--cyan-dim);border-radius:var(--r-lg);padding:14px 24px;font-size:14px;font-weight:700;color:var(--cyan);text-align:center}
+.d-opts{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.d-opt{flex:1;min-width:180px;max-width:260px;padding:16px;border-radius:var(--r-lg);text-align:center;border:1px solid var(--border);background:var(--bg-card);transition:all .3s}
+.d-opt:hover{transform:translateY(-2px)}
+.d-opt h4{font-size:13px;font-weight:700;margin-bottom:6px}
+.d-opt p{font-size:11px;color:var(--text-sec);line-height:1.7}
+.d-opt.yes{border-color:var(--green-dim)}.d-opt.yes h4{color:var(--green)}
+.d-opt.no{border-color:var(--red-dim)}.d-opt.no h4{color:var(--red)}
+.d-opt.maybe{border-color:var(--amber-dim)}.d-opt.maybe h4{color:var(--amber)}
+.d-arr{color:var(--text-dim);font-size:18px}
+
+/* ── RESPONSIVE (file-specific) ── */
+@media(max-width:768px){.sv-arena{flex-direction:column;gap:12px}.sv-arrows{min-width:auto;flex-direction:row;min-height:60px;padding:8px 0}.sv-arr-row{width:36px;height:auto;flex-direction:column}.d-opts{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<nav class="top-nav" id="tnav">
+  <button class="top-tab active" onclick="go(0)">ALERT</button>
+  <button class="top-tab" onclick="go(1)">INCIDENT</button>
+  <button class="top-tab" onclick="go(2)">MUTEX LOCK</button>
+  <button class="top-tab" onclick="go(3)">LOGICAL EXP</button>
+  <button class="top-tab" onclick="go(4)">PER</button>
+  <button class="top-tab" onclick="go(5)">PROACTIVE</button>
+  <button class="top-tab" onclick="go(6)">COMPARISON</button>
+  <button class="top-tab" onclick="go(7)">ANTI-PATTERNS</button>
+  <button class="top-tab" onclick="go(8)">SUMMARY</button>
+</nav>
+
+<div class="slide-box">
+
+<!-- S0: HERO -->
+<section class="slide on" id="s0">
+<div class="slide-in hero-c">
+  <div class="hero-beacon ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+  <h1 class="htitle ai">CACHE<br><span class="gr">STAMPEDE</span></h1>
+  <p class="hdesc ai">TTL 만료 순간, 수천 요청이 동시에 DB로 몰린다</p>
+  <button class="hbtn ai" onclick="go(1)">INVESTIGATE</button>
+</div>
+</section>
+
+<!-- S1: INCIDENT -->
+<section class="slide" id="s1">
+<div class="slide-in">
+  <div class="tag ai">01 INCIDENT — CACHE STAMPEDE DETECTED</div>
+  <h2 class="stitle ai">Cache Stampede란 <span class="hl">무엇인가</span></h2>
+  <p class="ssub ai">"오늘의 특가" 페이지, 초당 수만 건 요청. TTL 60초 만료 순간 — 수천 요청이 동시에 DB로 직행한다.</p>
+
+  <div class="stampede-viz ai">
+    <div class="sv-header">
+      <div class="sv-title">SYSTEM MONITOR</div>
+      <div class="sv-status ok" id="svStat">NORMAL</div>
+    </div>
+    <div class="sv-gauge">
+      <div class="sv-gauge-label">TTL</div>
+      <div class="sv-gauge-track"><div class="sv-gauge-fill" id="svFill" style="width:100%"></div></div>
+      <div class="sv-gauge-val ok" id="svVal">60s</div>
+    </div>
+    <div class="sv-arena">
+      <div class="sv-clients">
+        <div class="sv-cli" id="svC0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>REQ #1</div>
+        <div class="sv-cli" id="svC1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>REQ #2</div>
+        <div class="sv-cli" id="svC2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>REQ #3</div>
+        <div class="sv-cli" id="svC3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>REQ #N</div>
+      </div>
+      <div class="sv-arrows">
+        <div class="sv-arr-row"><div class="sv-arr" id="svA0"><div class="sv-arr-line" id="svAL0"><div class="sv-arr-dot" id="svAD0"></div></div><div class="sv-arr-tip" id="svAT0"></div></div></div>
+        <div class="sv-arr-row"><div class="sv-arr" id="svA1"><div class="sv-arr-line" id="svAL1"><div class="sv-arr-dot" id="svAD1"></div></div><div class="sv-arr-tip" id="svAT1"></div></div></div>
+        <div class="sv-arr-row"><div class="sv-arr" id="svA2"><div class="sv-arr-line" id="svAL2"><div class="sv-arr-dot" id="svAD2"></div></div><div class="sv-arr-tip" id="svAT2"></div></div></div>
+        <div class="sv-arr-row"><div class="sv-arr" id="svA3"><div class="sv-arr-line" id="svAL3"><div class="sv-arr-dot" id="svAD3"></div></div><div class="sv-arr-tip" id="svAT3"></div></div></div>
+      </div>
+      <div class="sv-db">
+        <div class="sv-db-box ok" id="svDb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>DB</div>
+        <div class="sv-db-impact" id="svImpact">OVERLOAD</div>
+      </div>
+    </div>
+    <div class="sv-log" id="svLog">[ READY ] Press play to simulate the Stampede</div>
+    <div class="sv-ctrl">
+      <button class="sv-btn pri" onclick="svPlay()">SIMULATE</button>
+      <button class="sv-btn" onclick="svReset()">RESET</button>
+    </div>
+  </div>
+
+  <div class="alert ai" style="margin-top:20px"><strong>핵심:</strong> 단 1개의 요청만 DB를 갔다 오면 나머지는 그 결과를 공유할 수 있는데, 그 조율이 없는 것이 문제다. — Thundering Herd 문제의 캐시 특화 사례</div>
+</div>
+</section>
+
+<!-- S2: MUTEX LOCK -->
+<section class="slide" id="s2">
+<div class="slide-in">
+  <div class="tag safe ai">02 SOLUTION — STRATEGY 01</div>
+  <h2 class="stitle ai">전략 1: <span class="hl-g">Mutex Lock</span></h2>
+  <p class="ssub ai">오직 하나의 스레드만 DB 조회 권한을 획득하고, 나머지는 짧은 시간 대기 후 갱신된 캐시를 읽는다.</p>
+
+  <div class="sf-diagram ai">
+    <div class="sv-header"><div class="sv-title">MUTEX LOCK FLOW</div></div>
+    <div class="sf-steps">
+      <div class="sf-step" id="mx0"><div class="sf-num">1</div><div><div class="sf-text">N개 요청 도착, Cache MISS 발생</div><div class="sf-sub">GET cache:today_deals → null</div></div></div>
+      <div class="sf-step" id="mx1"><div class="sf-num">2</div><div><div class="sf-text">모든 요청이 동시에 SETNX 락 시도</div><div class="sf-sub">SETNX lock:today_deals "locked" EX 5</div></div></div>
+      <div class="sf-step" id="mx2"><div class="sf-num">3</div><div><div class="sf-text">단 1개만 락 획득 성공, 나머지는 대기</div><div class="sf-sub">Thread-1: true ✓ | Thread-2~N: false → sleep(50ms)</div></div></div>
+      <div class="sf-step" id="mx3"><div class="sf-num">4</div><div><div class="sf-text">승리자가 DB 조회 → 캐시 갱신 → 락 해제</div><div class="sf-sub">SELECT * FROM deals → SET cache:today_deals → DEL lock</div></div></div>
+      <div class="sf-step" id="mx4"><div class="sf-num">5</div><div><div class="sf-text">대기 중이던 요청들이 갱신된 캐시에서 HIT</div><div class="sf-sub">GET cache:today_deals → data ✓</div></div></div>
+    </div>
+    <div class="sf-ctrl">
+      <button class="sf-btn pri" onclick="mxPlay()">PLAY</button>
+      <button class="sf-btn" onclick="mxStep()">STEP</button>
+      <button class="sf-btn" onclick="mxReset()">RESET</button>
+    </div>
+  </div>
+
+  <div class="alert warn ai" style="margin-top:14px"><strong>LOCK_TTL 필수:</strong> 락을 획득한 스레드가 비정상 종료되면 다른 스레드들이 영원히 대기할 수 있다. 반드시 LOCK_TTL을 설정하여 자동 만료되도록 해야 한다. 프로덕션에서는 Redisson의 RLock 사용을 권장한다.</div>
+</div>
+</section>
+
+<!-- S3: LOGICAL EXPIRATION -->
+<section class="slide" id="s3">
+<div class="slide-in">
+  <div class="tag safe ai">03 SOLUTION — STRATEGY 02</div>
+  <h2 class="stitle ai">전략 2: <span class="hl-g">Logical Expiration</span></h2>
+  <p class="ssub ai">물리 TTL을 제거하고, 데이터 안에 만료 시각을 직접 넣어두는 발상의 전환.</p>
+
+  <div class="g2 ai">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <h3 style="color:var(--cyan)">핵심 동작</h3>
+        <p>1. 요청이 들어오면 캐시에서 데이터를 읽는다<br>
+        2. CacheWrapper 안의 expireAt를 확인한다<br>
+        3. 만료됐어도 <strong style="color:var(--green)">stale 데이터를 즉시 반환</strong>한다<br>
+        4. 백그라운드에서 단 하나의 스레드가 비동기 갱신</p>
+      </div>
+      <div class="code-block">
+<pre><span class="kw">record</span> <span class="tp">CacheWrapper</span>&lt;<span class="tp">T</span>&gt;(
+    <span class="tp">T</span> data,
+    <span class="tp">Instant</span> expireAt  <span class="cm">// 논리적 만료 시각</span>
+) {}
+
+<span class="cm">// 만료 여부와 관계없이 기존 데이터 즉시 반환</span>
+<span class="kw">if</span> (Instant.<span class="fn">now</span>().<span class="fn">isAfter</span>(wrapper.<span class="fn">expireAt</span>())) {
+    <span class="fn">tryAsyncRefresh</span>();  <span class="cm">// 비동기 갱신</span>
+}
+<span class="kw">return</span> wrapper.<span class="fn">data</span>();  <span class="cm">// 즉시 반환!</span></pre>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="pc">
+        <div class="pro"><h4>장점</h4>어떤 클라이언트도 DB 조회를 기다리지 않는다. 응답 지연시간 0.</div>
+        <div class="con"><h4>단점</h4>짧은 순간 동안 약간 오래된 stale 데이터가 제공될 수 있다.</div>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--green)">적합한 시나리오</h3>
+        <p>"오늘의 특가"처럼 수 초의 지연이 비즈니스에 큰 영향을 주지 않는 경우. Latency에 민감한 대규모 읽기 중심 서비스에 최적.</p>
+      </div>
+      <div class="alert warn">
+        <strong>주의:</strong> 물리적 TTL을 완전히 제거하면 Redis 메모리가 무한히 커질 수 있다. 아주 긴 TTL(예: 24시간)은 설정해 두어야 한다.
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S4: PER -->
+<section class="slide" id="s4">
+<div class="slide-in">
+  <div class="tag info ai">04 SOLUTION — STRATEGY 03</div>
+  <h2 class="stitle ai">전략 3: <span class="hl-c">확률적 조기 갱신 (PER)</span></h2>
+  <p class="ssub ai">TTL이 만료되기 전에, 확률적으로 미리 캐시를 갱신하는 학술적으로 가장 우아한 해법.</p>
+
+  <div class="formula-box ai">
+    <div class="formula"><span class="var">현재시각</span> − <span class="var">delta</span> × <span class="var">beta</span> × ln(rand()) ≥ <span class="var">만료시각</span> → 갱신</div>
+  </div>
+
+  <div class="g3 ai">
+    <div class="card"><div class="ci" style="background:var(--cyan-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><h3 style="color:var(--cyan)">delta</h3><p>캐시 값 재계산 소요 시간. 재계산이 오래 걸릴수록 더 일찍 갱신을 시도한다.</p></div>
+    <div class="card"><div class="ci" style="background:var(--amber-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><h3 style="color:var(--amber)">beta</h3><p>조기 갱신의 적극성 조절 파라미터. 기본값 1.0. 높을수록 더 공격적으로 미리 갱신.</p></div>
+    <div class="card"><div class="ci" style="background:var(--green-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div><h3 style="color:var(--green)">ln(rand())</h3><p>항상 음수 → 현재 시각을 앞당기는 효과. TTL 만료가 가까울수록 갱신 확률이 높아진다.</p></div>
+  </div>
+
+  <div class="code-block ai">
+<pre><span class="cm">// PER 공식 적용</span>
+<span class="kw">double</span> beta = <span class="str">1.0</span>;
+<span class="kw">double</span> computeTime = wrapper.<span class="fn">computeTimeMs</span>();
+<span class="kw">long</span> ttlRemaining = Duration.<span class="fn">between</span>(Instant.<span class="fn">now</span>(), wrapper.<span class="fn">expireAt</span>()).<span class="fn">toMillis</span>();
+<span class="kw">double</span> threshold = beta * computeTime * Math.<span class="fn">log</span>(Math.<span class="fn">random</span>());
+
+<span class="kw">if</span> (ttlRemaining + threshold <= <span class="str">0</span>) {
+    <span class="cm">// 확률적으로 "이번 요청이 미리 갱신"</span>
+    <span class="fn">tryAsyncRefresh</span>();
+}</pre>
+  </div>
+
+  <div class="alert safe ai"><strong>특징:</strong> 갱신 비용이 크고(수백 ms 이상) TTL이 긴 경우에 효과가 극대화된다. 가장 이론적으로 정교한 접근이다.</div>
+</div>
+</section>
+
+<!-- S5: PROACTIVE REFRESH -->
+<section class="slide" id="s5">
+<div class="slide-in">
+  <div class="tag safe ai">05 SOLUTION — STRATEGY 04</div>
+  <h2 class="stitle ai">전략 4: <span class="hl-g">Proactive Refresh</span></h2>
+  <p class="ssub ai">"캐시가 비는 상황 자체를 만들지 말자" — 스케줄러가 TTL 만료 전에 주기적으로 캐시를 갱신한다.</p>
+
+  <div class="tl-proactive ai">
+    <div class="sv-header"><div class="sv-title">CACHE LIFECYCLE TIMELINE</div><div class="sv-status ok">ALWAYS FILLED</div></div>
+    <div class="tl-track" id="tlTrack">
+      <div class="tl-segment filled" id="tlSeg0">TTL 60s<div class="tl-marker" style="right:33%">@40s REFRESH</div></div>
+      <div class="tl-segment" id="tlSeg1">TTL 60s<div class="tl-marker" style="right:33%">@40s REFRESH</div></div>
+      <div class="tl-segment" id="tlSeg2">TTL 60s<div class="tl-marker" style="right:33%">@40s REFRESH</div></div>
+    </div>
+    <div class="tl-label"><span>0s</span><span>60s</span><span>120s</span><span>180s</span></div>
+    <div class="sv-log" id="tlLog" style="margin-top:12px">[ INFO ] Cache always has data → <span class="hl-g">Stampede probability = 0</span></div>
+    <div class="sv-ctrl" style="margin-top:12px">
+      <button class="sv-btn pri" onclick="tlPlay()">ANIMATE</button>
+      <button class="sv-btn" onclick="tlReset()">RESET</button>
+    </div>
+  </div>
+
+  <div class="g2 ai" style="margin-top:14px">
+    <div class="card" style="border-color:var(--green-dim)">
+      <h3 style="color:var(--green)">빛을 발하는 조건</h3>
+      <p>캐시 키가 <strong>예측 가능하고 한정적</strong>인 경우. "오늘의 특가", "실시간 인기 검색어 Top 10", "메인 페이지 배너 목록" 등.</p>
+    </div>
+    <div class="card" style="border-color:var(--red-dim)">
+      <h3 style="color:var(--red)">적합하지 않은 경우</h3>
+      <p>사용자 개별 프로필처럼 <strong>수백만 개의 키</strong>가 존재하고, 어떤 키가 요청될지 예측할 수 없는 경우.</p>
+    </div>
+  </div>
+
+  <div class="alert warn ai" style="margin-top:14px"><strong>ShedLock:</strong> 서버 5대에서 @Scheduled가 동시에 돌면 동일 쿼리 5번 발생. ShedLock으로 at most once 실행을 보장하라.</div>
+</div>
+</section>
+
+<!-- S6: COMPARISON -->
+<section class="slide" id="s6">
+<div class="slide-in">
+  <div class="tag info ai">06 ANALYSIS — STRATEGY COMPARISON</div>
+  <h2 class="stitle ai">어떤 전략을 <span class="hl-c">쓸까</span></h2>
+  <p class="ssub ai">결국 Latency vs Stale 데이터 vs 구현 복잡도의 트레이드오프다.</p>
+
+  <div class="ai" style="overflow-x:auto;margin-bottom:18px">
+    <table class="cmp-table">
+      <thead><tr><th>전략</th><th>지연시간</th><th>오래된 데이터</th><th>복잡도</th><th>적합한 경우</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Mutex Lock</strong></td><td><span class="badge bad">증가</span></td><td><span class="badge good">없음</span></td><td><span class="badge good">낮음</span></td><td>트래픽 적고 정합성 중요</td></tr>
+        <tr><td><strong>Logical Exp</strong></td><td><span class="badge good">없음</span></td><td><span class="badge mid">있음</span></td><td><span class="badge mid">중간</span></td><td>대규모 읽기 중심 서비스</td></tr>
+        <tr><td><strong>PER</strong></td><td><span class="badge good">없음</span></td><td><span class="badge mid">있음</span></td><td><span class="badge bad">높음</span></td><td>갱신 비용 크고 TTL 긴 경우</td></tr>
+        <tr><td><strong>Proactive</strong></td><td><span class="badge good">없음</span></td><td><span class="badge good">없음</span></td><td><span class="badge good">낮음</span></td><td>키가 예측 가능하고 한정적</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="dtree ai">
+    <div class="dq-box">캐시 키가 예측 가능하고 한정적인가?</div>
+    <div class="d-arr">↓</div>
+    <div class="d-opts">
+      <div class="d-opt yes"><h4>"예" → Proactive Refresh</h4><p>스케줄러로 TTL 전에 갱신<br>Stampede 자체를 원천 차단</p></div>
+      <div class="d-opt maybe"><h4>"아니오" → stale 허용?</h4><p>허용 가능 → Logical Expiration<br>PER이 더 정교한 대안</p></div>
+      <div class="d-opt no"><h4>"절대 불가" → Mutex Lock</h4><p>항상 최신 데이터 보장<br>대기 latency가 트레이드오프</p></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S7: ANTI-PATTERNS -->
+<section class="slide" id="s7">
+<div class="slide-in">
+  <div class="tag ai">07 WARNING — ANTI-PATTERNS</div>
+  <h2 class="stitle ai">주의사항 & <span class="hl">Anti-patterns</span></h2>
+
+  <div class="g2 ai">
+    <div class="ap-card">
+      <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>TTL 랜덤화만으로 부족</h4>
+      <p>Jitter는 <strong>서로 다른 키</strong>들의 동시 만료를 방지하는 것이지, 같은 키에 대한 동시 요청 문제는 해결하지 못한다. Request coalescing이나 PER 같은 별도 기법이 필요하다.</p>
+    </div>
+    <div class="ap-card">
+      <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>재귀 호출 Mutex Lock</h4>
+      <p>DB 갱신이 오래 걸리면 재귀가 깊어져 <strong>스택 오버플로우</strong> 위험이 있다. 프로덕션에서는 최대 재시도 횟수를 두거나 while 루프 + sleep 패턴으로 변경해야 한다.</p>
+    </div>
+    <div class="ap-card">
+      <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>캐시를 영구 저장소 취급</h4>
+      <p>Logical Expiration에서 물리적 TTL을 제거하면 Redis 메모리가 무한히 커질 수 있다. 아주 긴 TTL(예: <strong>24시간</strong>)을 설정해서 최소한의 안전장치를 마련해야 한다.</p>
+    </div>
+    <div class="ap-card">
+      <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>갱신 주기와 TTL을 너무 가깝게</h4>
+      <p>스케줄러가 약간만 지연되어도 TTL 만료를 놓칠 수 있다. CDN 업계에서는 TTL의 <strong>90~95% 시점</strong>에 비동기 갱신 시작, 50~70%는 보수적 선택지다.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S8: SUMMARY -->
+<section class="slide" id="s8">
+<div class="slide-in">
+  <div class="tag safe ai">08 RESOLVED — INCIDENT SUMMARY</div>
+  <h2 class="stitle ai"><span class="hl-g">인시던트 해결 완료</span></h2>
+
+  <div class="g4 ai">
+    <div class="card" style="text-align:center;border-color:var(--green-dim)"><div class="ci" style="background:var(--green-pale);margin:0 auto 10px"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><h3 style="color:var(--green)">Mutex Lock</h3><p>SETNX로 단일 갱신 보장. 정합성 우선.</p></div>
+    <div class="card" style="text-align:center;border-color:var(--cyan-dim)"><div class="ci" style="background:var(--cyan-pale);margin:0 auto 10px"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><h3 style="color:var(--cyan)">Logical Exp</h3><p>Stale 반환 + 비동기 갱신. Latency 0.</p></div>
+    <div class="card" style="text-align:center;border-color:var(--amber-dim)"><div class="ci" style="background:var(--amber-pale);margin:0 auto 10px"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><h3 style="color:var(--amber)">PER</h3><p>확률적 조기 갱신. 학술적 최적해.</p></div>
+    <div class="card" style="text-align:center;border-color:var(--green-dim)"><div class="ci" style="background:var(--green-pale);margin:0 auto 10px"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div><h3 style="color:var(--green)">Proactive</h3><p>스케줄러 사전 갱신. Stampede 원천 차단.</p></div>
+  </div>
+
+  <div class="alert safe ai" style="margin-top:18px;font-style:italic;border-color:var(--green-dim)">
+    <strong>실무 권장:</strong> 리액티브 전략(Mutex / Logical Exp)과 프로액티브 전략(Proactive Refresh)을 조합하여 <strong>이중 방어 계층</strong>을 구성하는 것이 일반적이다.
+  </div>
+
+  <div class="sum-banner ai">
+    <h3>CACHE STAMPEDE — INCIDENT CLOSED</h3>
+    <p>캐시 보호막이 사라지는 순간에 대비하라. 전략의 선택은 트래픽 규모, 데이터 특성, 허용 가능한 stale 수준에 따라 달라진다.</p>
+  </div>
+</div>
+</section>
+
+</div>
+
+<div class="ctrls">
+  <button class="cb" id="pBtn" onclick="prev()" disabled>PREV</button>
+  <span class="cc" id="ctr">1 / 9</span>
+  <button class="cb" id="nBtn" onclick="next()">NEXT</button>
+</div>
+
+<script src="../nav.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+
+// ── STAMPEDE VISUALIZER ──
+let svRun=false,svTtl=60,svInt=null,svTimers=[];
+function svReset(){
+  if(svInt){clearInterval(svInt);svInt=null}
+  svTimers.forEach(t=>clearTimeout(t));svTimers=[];
+  svRun=false;svTtl=60;
+  $('svFill').style.width='100%';$('svFill').className='sv-gauge-fill';
+  $('svVal').textContent='60s';$('svVal').className='sv-gauge-val ok';
+  $('svStat').textContent='NORMAL';$('svStat').className='sv-status ok';
+  $('svDb').className='sv-db-box ok';$('svImpact').classList.remove('vis');
+  $('svLog').innerHTML='[ READY ] Press play to simulate the Stampede';
+  for(let i=0;i<4;i++){
+    $('svC'+i).classList.remove('rush');
+    $('svA'+i).classList.remove('vis');
+    $('svAL'+i).classList.remove('rush');
+    $('svAT'+i).classList.remove('rush');
+    const d=$('svAD'+i);d.classList.remove('run');d.style.opacity='0';d.style.left='0';
+  }
+}
+function svPlay(){
+  if(svRun)return;svReset();svRun=true;
+  $('svLog').innerHTML='[ <span class="hl-g">MONITORING</span> ] TTL countdown in progress...';
+  svInt=setInterval(()=>{
+    svTtl--;
+    const p=svTtl/60*100;
+    $('svFill').style.width=p+'%';
+    $('svFill').className='sv-gauge-fill'+(p<25?' low':p<50?' mid':'');
+    $('svVal').textContent=svTtl+'s';
+    $('svVal').className='sv-gauge-val'+(svTtl<15?' crit':svTtl<30?' warn':' ok');
+    if(svTtl<=15){$('svStat').textContent='WARNING';$('svStat').className='sv-status danger'}
+    if(svTtl<=0){clearInterval(svInt);svInt=null;svHit()}
+  },80);
+}
+function svHit(){
+  $('svFill').style.width='0%';$('svFill').className='sv-gauge-fill dead';
+  $('svVal').textContent='EXPIRED';$('svVal').className='sv-gauge-val crit';
+  $('svStat').textContent='DANGER';$('svStat').className='sv-status danger';
+  $('svLog').innerHTML='[ <span class="hl-r">ALERT</span> ] Cache MISS — All requests heading to DB!';
+
+  svTimers.push(setTimeout(()=>{
+    const delays=[0,100,180,280];
+    delays.forEach((d,i)=>{
+      svTimers.push(setTimeout(()=>{
+        $('svC'+i).classList.add('rush');
+        $('svA'+i).classList.add('vis');
+        $('svAL'+i).classList.add('rush');
+        $('svAT'+i).classList.add('rush');
+        const dot=$('svAD'+i);dot.classList.remove('run');void dot.offsetWidth;dot.classList.add('run');
+      },d));
+    });
+    svTimers.push(setTimeout(()=>{
+      $('svDb').className='sv-db-box stressed';
+      $('svImpact').classList.add('vis');
+      $('svLog').innerHTML='[ <span class="hl-r">DANGER</span> ] DB overload — N concurrent queries exploding!';
+    },600));
+    svTimers.push(setTimeout(()=>{
+      $('svLog').innerHTML='[ <span class="hl-r">ROOT CAUSE</span> ] Only 1 DB trip needed, but there is no coordination mechanism';
+      svRun=false;
+    },2500));
+  },300));
+}
+
+// ── MUTEX FLOW ──
+let mxS=0,mxAuto=null;
+const mxClasses=['lit','lit','lit-red','lit-green','lit-green'];
+function mxClr(){for(let i=0;i<5;i++)$('mx'+i).className='sf-step';mxS=0}
+function mxDoStep(){
+  if(mxS>=5){mxClr();return}
+  $('mx'+mxS).classList.add(mxClasses[mxS]);
+  mxS++;
+}
+function mxStep(){if(mxAuto){clearInterval(mxAuto);mxAuto=null}mxDoStep()}
+function mxPlay(){mxClr();if(mxAuto){clearInterval(mxAuto);mxAuto=null}mxAuto=setInterval(()=>{if(mxS>=5){clearInterval(mxAuto);mxAuto=null;return}mxDoStep()},1200)}
+function mxReset(){if(mxAuto){clearInterval(mxAuto);mxAuto=null}mxClr()}
+
+// ── PROACTIVE TIMELINE ──
+let tlAnim=null,tlStep=0;
+function tlReset(){if(tlAnim){clearInterval(tlAnim);tlAnim=null}tlStep=0;
+  for(let i=0;i<3;i++){const s=$('tlSeg'+i);s.className='tl-segment'+(i===0?' filled':'')}
+  $('tlLog').innerHTML='[ INFO ] Cache always has data → <span class="hl-g">Stampede probability = 0</span>'}
+function tlPlay(){tlReset();
+  tlAnim=setInterval(()=>{
+    const seg=$('tlSeg'+tlStep);
+    seg.classList.add('filled');
+    $('tlLog').innerHTML='[ <span class="hl-g">REFRESH</span> ] Segment '+(tlStep+1)+' — Scheduler refreshed before TTL expiry';
+    tlStep++;
+    if(tlStep>=3){clearInterval(tlAnim);tlAnim=null;
+      setTimeout(()=>{$('tlLog').innerHTML='[ <span class="hl-g">RESULT</span> ] Cache always has data → Stampede probability = 0'},800)}
+  },1200);
+}
+</script>
+</body>
+</html>

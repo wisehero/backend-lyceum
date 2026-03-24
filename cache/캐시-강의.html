@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cache 완벽 가이드</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;900&family=Outfit:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../common.css">
+<style>
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 30% 20%,rgba(0,212,255,.06) 0%,transparent 50%),radial-gradient(ellipse at 70% 80%,rgba(255,51,68,.04) 0%,transparent 50%);pointer-events:none;z-index:0}
+
+/* ── STRATEGY FLOW ── */
+.sf-diagram{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px;position:relative;overflow:hidden}
+.sf-diagram::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.015) 2px,rgba(0,212,255,.015) 4px);pointer-events:none}
+.sf-steps{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.sf-step{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--r-md);background:var(--surface);border:1px solid transparent;transition:all .4s;opacity:.35}
+.sf-step.lit{opacity:1;border-color:var(--cyan);background:var(--cyan-pale)}
+.sf-step.lit-red{opacity:1;border-color:var(--red);background:var(--red-pale)}
+.sf-step.lit-green{opacity:1;border-color:var(--green);background:var(--green-pale)}
+.sf-num{width:22px;height:22px;border-radius:50%;background:var(--cyan);color:var(--bg);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sf-step.lit-red .sf-num{background:var(--red)}
+.sf-step.lit-green .sf-num{background:var(--green)}
+.sf-text{font-size:13px;font-weight:500}
+.sf-sub{font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-top:2px}
+.sf-ctrl{display:flex;gap:8px;justify-content:center}
+.sf-btn{min-height:34px;padding:6px 20px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-sec);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer;transition:all .25s}
+.sf-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.sf-btn.pri{border-color:var(--cyan);color:var(--cyan)}
+.sf-btn.pri:hover{background:var(--cyan);color:var(--bg)}
+
+/* ── TABS ── */
+.stabs{display:flex;gap:2px;margin-bottom:14px;background:var(--surface);border-radius:var(--r-md);padding:3px;width:fit-content;border:1px solid var(--border)}
+.stab{padding:6px 18px;border:none;border-radius:var(--r-sm);background:transparent;font-family:var(--font-body);font-size:12px;font-weight:600;color:var(--text-dim);cursor:pointer;transition:all .25s}
+.stab.on{background:var(--cyan-pale);color:var(--cyan);border:1px solid var(--cyan-dim)}
+.spanel{display:none}.spanel.on{display:block}
+
+/* ── PRO/CON ── */
+.pc{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.pro,.con{padding:14px;border-radius:var(--r-md);font-size:12px;line-height:1.8}
+.pro{background:var(--green-pale);color:var(--green);border:1px solid var(--green-dim)}
+.con{background:var(--red-pale);color:var(--text-sec);border:1px solid var(--red-dim)}
+.pro h4{color:var(--green)}.con h4{color:var(--red)}
+.pro h4,.con h4{font-size:12px;font-weight:700;margin-bottom:4px}
+
+/* ── SUMMARY BANNER ── */
+.sum-banner{background:linear-gradient(135deg,var(--surface),var(--bg-card-solid));border:1px solid var(--cyan-dim);border-radius:var(--r-xl);padding:24px;text-align:center;margin-top:18px;position:relative;overflow:hidden}
+.sum-banner::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent)}
+.sum-banner h3{font-family:var(--font-display);font-size:17px;font-weight:700;color:var(--cyan);margin-bottom:6px}
+.sum-banner p{font-size:13px;color:var(--text-sec);line-height:1.8}
+
+/* ── ANALOGY FLOW ── */
+.anbox{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px;margin-bottom:18px}
+.anflow{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.fbox{min-height:70px;min-width:100px;padding:12px 16px;border-radius:var(--r-lg);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:12px;text-align:center;gap:6px;border:1px solid var(--border);background:var(--surface)}
+.fbox svg{width:22px;height:22px}
+.fbox.per{background:var(--cyan-pale);color:var(--cyan);border-color:var(--cyan-dim)}
+.fbox.cch{background:var(--amber-pale);color:var(--amber);border-color:var(--amber-dim)}
+.fbox.org{background:rgba(124,58,237,.12);color:#c4b5fd;border-color:rgba(124,58,237,.3)}
+.farr{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:700;font-family:var(--font-mono)}
+.farr svg{width:16px;height:16px}
+.farr.fast{color:var(--green)}.farr.slow{color:var(--red)}
+.andesc{text-align:center;font-size:13px;color:var(--text-sec);line-height:1.9}
+
+/* ── BAR CHART ── */
+.brow{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.blbl{font-size:12px;font-weight:500;color:var(--text-sec);min-width:100px;flex-shrink:0}
+.btrk{flex:1;min-height:26px;background:var(--surface);border-radius:13px;border:1px solid var(--border);position:relative;overflow:hidden}
+.bfill{height:100%;position:absolute;top:0;left:0;bottom:0;border-radius:13px;width:0;transition:width 1.2s ease}
+.slide.on .bfill{width:var(--w)}
+.bfill.red{background:linear-gradient(90deg,var(--red),rgba(255,51,68,.6))}
+.bfill.amb{background:linear-gradient(90deg,var(--amber),rgba(255,170,0,.6))}
+.bfill.grn{background:linear-gradient(90deg,var(--green),rgba(0,255,136,.6))}
+.bfill.blu{background:linear-gradient(90deg,var(--cyan),rgba(0,212,255,.6))}
+.bval{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;color:var(--text);font-family:var(--font-mono)}
+
+/* ── FLOW TABS ── */
+.ftabs{display:flex;gap:2px;margin-bottom:14px;background:var(--surface);border-radius:var(--r-md);padding:3px;width:fit-content;border:1px solid var(--border)}
+.ftab{padding:7px 22px;border:none;border-radius:var(--r-sm);background:transparent;font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--text-dim);cursor:pointer;transition:all .25s}
+.ftab.on{background:var(--cyan-pale);color:var(--cyan);border:1px solid var(--cyan-dim)}
+.fpanel{display:none}.fpanel.on{display:block}
+.fsteps{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.fnode{padding:12px 16px;border-radius:var(--r-md);font-size:12px;font-weight:600;text-align:center;min-width:75px;border:1px solid var(--border);background:var(--surface)}
+.fnode.cl{background:var(--cyan-pale);color:var(--cyan);border-color:var(--cyan-dim)}
+.fnode.ca{background:var(--amber-pale);color:var(--amber);border-color:var(--amber-dim)}
+.fnode.db{background:rgba(124,58,237,.12);color:#c4b5fd;border-color:rgba(124,58,237,.3)}
+.fnode.ok{background:var(--green-pale);color:var(--green);border-color:var(--green-dim)}
+.fa{font-size:14px;color:var(--text-dim);display:flex;flex-direction:column;align-items:center;gap:1px;font-weight:600;font-family:var(--font-mono)}
+.fa span{font-size:10px}
+.fexp{background:var(--surface);border-radius:var(--r-md);padding:16px 20px;font-size:13px;color:var(--text-sec);line-height:2;border-left:3px solid var(--cyan)}
+.fexp .n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--cyan);color:var(--bg);font-size:10px;font-weight:700;margin-right:6px}
+
+/* ── TYPE STACK (LAYERS) ── */
+.trow{background:var(--bg-card);border-radius:var(--r-lg);padding:14px 18px;display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:14px;border:1px solid var(--border);transition:all .3s;cursor:default;margin-bottom:8px}
+.trow:hover{border-color:var(--cyan-dim);transform:translateX(4px)}
+.tico{width:40px;min-height:40px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center}
+.tico svg{width:20px;height:20px}
+.tinfo h3{font-size:14px;font-weight:700;margin-bottom:2px}.tinfo p{font-size:12px;color:var(--text-sec);line-height:1.6}
+.tmeta{text-align:right;font-size:11px;font-weight:600}
+.tspd{color:var(--green);margin-bottom:2px;font-family:var(--font-mono)}.tsz{color:var(--text-dim);font-family:var(--font-mono)}
+
+/* ── TTL DEMO ── */
+.ttl-box{background:var(--bg-card);border-radius:var(--r-xl);padding:22px;border:1px solid var(--border);margin-bottom:14px}
+.ttl-trk{min-height:34px;background:var(--surface);border-radius:17px;overflow:hidden;border:1px solid var(--border);margin:12px 0 8px}
+.ttl-fill{height:100%;min-height:34px;border-radius:17px;display:flex;align-items:center;padding:0 14px;font-size:12px;font-weight:600;transition:width .1s linear;font-family:var(--font-body)}
+.ttl-fill.alive{background:linear-gradient(90deg,var(--green),var(--cyan));color:var(--bg)}
+.ttl-fill.expiring{background:linear-gradient(90deg,var(--amber),var(--red));color:var(--bg)}
+.ttl-fill.expired{background:var(--red);color:#fff}
+.ttl-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:10px}
+.ttl-btns{display:flex;gap:6px;flex-wrap:wrap}
+.tb{min-height:32px;padding:5px 14px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text-sec);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer;transition:all .25s}
+.tb:hover{border-color:var(--cyan);color:var(--cyan)}
+.tb.on{background:var(--cyan-pale);color:var(--cyan);border-color:var(--cyan-dim)}
+
+/* ── LRU SIMULATOR ── */
+.lru-box{background:var(--bg-card);border-radius:var(--r-xl);padding:22px;border:1px solid var(--border)}
+.lru-slots{display:flex;gap:8px;margin:12px 0}
+.lru-s{width:50px;min-height:42px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;background:var(--surface);color:var(--text-dim);border:1px solid var(--border);transition:all .3s;font-family:var(--font-mono)}
+.lru-s.f{color:var(--cyan);background:var(--cyan-pale);border-color:var(--cyan-dim)}
+.lru-s.hit{color:var(--green);background:var(--green-pale);border-color:var(--green-dim);animation:pop .4s}
+.lru-s.ev{color:var(--red);background:var(--red-pale);border-color:var(--red-dim);animation:pop .4s}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.12)}100%{transform:scale(1)}}
+.lru-keys{display:flex;gap:6px;flex-wrap:wrap}
+.lk{width:36px;min-height:36px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:var(--font-mono);font-size:13px;font-weight:700;cursor:pointer;transition:all .25s}
+.lk:hover{transform:scale(1.08);background:var(--cyan-pale);color:var(--cyan);border-color:var(--cyan-dim)}
+.lru-log{margin-top:10px;max-height:70px;overflow-y:auto;font-size:11px;color:var(--text-dim);display:flex;flex-direction:column;gap:2px;font-family:var(--font-mono)}
+.lh{color:var(--green)}.lm{color:var(--red)}.le{color:var(--amber)}
+
+/* ── STRATEGY CARD (S6) ── */
+.sc{background:var(--bg-card);border-radius:var(--r-lg);padding:18px;border:1px solid var(--border);transition:all .3s;cursor:pointer}
+.sc:hover{transform:translateY(-2px);border-color:var(--border-glow)}
+.sc.sel{border-color:var(--cyan);box-shadow:0 0 16px rgba(0,212,255,.15)}
+.sh{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.sico{width:38px;min-height:38px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sico svg{width:18px;height:18px}
+.sn-t{font-size:13px;font-weight:800;color:var(--text)}.se{font-size:10px;color:var(--text-dim)}
+.sd{font-size:12px;color:var(--text-sec);line-height:1.8;margin-bottom:8px}
+.stags{display:flex;gap:4px;flex-wrap:wrap}
+.st{padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700}
+.st.u{background:var(--green-pale);color:var(--green);border:1px solid var(--green-dim)}
+.st.d{background:var(--red-pale);color:var(--red);border:1px solid var(--red-dim)}
+
+/* ── ANIM PANEL ── */
+.apanel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;margin-top:14px;display:none}
+.apanel.vis{display:block}
+.acanvas{display:flex;align-items:center;justify-content:center;gap:10px;min-height:80px;margin-bottom:12px}
+.anode{min-width:75px;min-height:58px;padding:10px 12px;border-radius:var(--r-md);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:700;text-align:center;gap:4px;border:1px solid var(--border);background:var(--surface);transition:all .4s;opacity:.35}
+.anode svg{width:18px;height:18px}
+.anode.lit{opacity:1}.anode.glow{opacity:1;box-shadow:0 0 16px var(--cyan-dim)}
+.aline{width:36px;min-height:2px;background:var(--border);position:relative}
+.aline::after{content:'';position:absolute;top:-3px;left:0;width:8px;height:8px;border-radius:50%;background:var(--cyan);opacity:0;transition:opacity .3s}
+.aline.lit{background:var(--cyan)}.aline.lit::after{opacity:1;animation:packet 1s ease-in-out infinite}
+@keyframes packet{0%{left:0}100%{left:calc(100% - 8px)}}
+.asteps{font-size:13px;color:var(--text-sec);line-height:2}
+.asteps .sn{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--surface);color:var(--text-dim);font-size:10px;font-weight:700;margin-right:6px;border:1px solid var(--border);transition:all .3s}
+.asteps .sn.lit{background:var(--cyan);color:var(--bg);border-color:var(--cyan)}
+
+/* ── PITFALL CARD ── */
+.pcard{background:var(--bg-card);border-radius:var(--r-lg);padding:20px;border:1px solid var(--border);position:relative;overflow:hidden}
+.pcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--red)}
+.pcard h3{font-size:14px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px;color:var(--red)}
+.pcard h3 svg{width:16px;height:16px;flex-shrink:0}
+.pcard p{font-size:12px;color:var(--text-sec);line-height:1.8;margin-bottom:10px}
+.psol{background:var(--green-pale);border-radius:var(--r-sm);padding:10px 12px;font-size:12px;color:var(--green);font-weight:600;line-height:1.7;border:1px solid var(--green-dim)}
+
+/* ── COMPARE PANEL (S8) ── */
+.cmp{background:var(--bg-card);border-radius:var(--r-lg);padding:22px;border:1px solid var(--border)}
+.cmp h3{font-size:15px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.cmp .meta{font-size:12px;color:var(--text-dim);margin-bottom:14px;font-family:var(--font-mono)}
+.crow{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
+.crow:last-child{border-bottom:none}
+.crow .k{color:var(--text-sec)}.crow .v{font-weight:700;color:var(--text);font-family:var(--font-mono)}
+
+/* ── MULTI-LEVEL FLOW ── */
+.mlflow{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.mlnode{min-width:120px;min-height:68px;padding:14px 18px;border-radius:var(--r-lg);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:13px;text-align:center;gap:5px;border:1px solid var(--border);background:var(--bg-card);transition:all .4s}
+.mlnode svg{width:22px;height:22px}
+.mlnode.l1{border-color:var(--green-dim);color:var(--green)}
+.mlnode.l2{border-color:var(--cyan-dim);color:var(--cyan)}
+.mlnode.l3{border-color:rgba(124,58,237,.4);color:#c4b5fd}
+.mlarr{font-size:13px;color:var(--text-dim);display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:600;font-family:var(--font-mono)}
+.mlarr span{font-size:10px}
+
+/* ── AP CARD ── */
+.ap-card{background:var(--bg-card);border:1px solid var(--red-dim);border-radius:var(--r-lg);padding:18px;position:relative;overflow:hidden}
+.ap-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--red)}
+.ap-card h4{font-size:13px;font-weight:700;color:var(--red);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.ap-card h4 svg{width:15px;height:15px;flex-shrink:0}
+.ap-card p{font-size:12px;color:var(--text-sec);line-height:1.8}
+
+/* ── SV HEADER ── */
+.sv-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.sv-title{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);letter-spacing:1px}
+.sv-status{font-family:var(--font-mono);font-size:11px;padding:3px 10px;border-radius:12px;font-weight:700}
+.sv-status.ok{color:var(--green);background:var(--green-pale);border:1px solid var(--green-dim)}
+.sv-btn{min-height:32px;padding:5px 18px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-sec);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer;transition:all .25s}
+.sv-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.sv-btn.pri{border-color:var(--cyan);color:var(--cyan)}
+.sv-btn.pri:hover{background:var(--cyan);color:var(--bg)}
+.sv-ctrl{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.sv-log{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-top:12px;min-height:20px;text-align:center;line-height:1.6}
+.sv-log .hl-g{color:var(--green)}.sv-log .hl-r{color:var(--red)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){.slide{padding:18px 14px}.g2,.g3,.g4{grid-template-columns:1fr}.top-tab{font-size:9px;padding:4px 8px}.pc{grid-template-columns:1fr}.mlflow{flex-direction:column}.anflow{flex-direction:column}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<nav class="top-nav" id="tnav">
+  <button class="top-tab active" onclick="go(0)">INTRO</button>
+  <button class="top-tab" onclick="go(1)">OVERVIEW</button>
+  <button class="top-tab" onclick="go(2)">WHY CACHE</button>
+  <button class="top-tab" onclick="go(3)">HOW IT WORKS</button>
+  <button class="top-tab" onclick="go(4)">LAYERS</button>
+  <button class="top-tab" onclick="go(5)">INVALIDATION</button>
+  <button class="top-tab" onclick="go(6)">STRATEGY</button>
+  <button class="top-tab" onclick="go(7)">PITFALLS</button>
+  <button class="top-tab" onclick="go(8)">LOCAL / REMOTE</button>
+  <button class="top-tab" onclick="go(9)">SUMMARY</button>
+</nav>
+
+<div class="slide-box">
+
+<!-- S0: HERO -->
+<section class="slide on" id="s0">
+<div class="slide-in hero-c">
+  <div class="hero-beacon ai">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+  </div>
+  <h1 class="htitle ai">CACHE<br><span class="gr">완벽 가이드</span></h1>
+  <p class="hdesc ai">자주 쓰는 건 가까이 두자 — 성능의 핵심 원리</p>
+  <button class="hbtn ai" onclick="go(1)">START EXPLORATION</button>
+  <div class="hero-status ai">
+    <div class="hero-stat"><div class="num">10</div><div class="lbl">SLIDES</div></div>
+    <div class="hero-stat"><div class="num" style="color:var(--green)">~1ns</div><div class="lbl">LOCAL CACHE</div></div>
+    <div class="hero-stat"><div class="num" style="color:var(--amber)">80~95%</div><div class="lbl">HIT RATE</div></div>
+  </div>
+</div>
+</section>
+
+<!-- S1: 핵심 개념 -->
+<section class="slide" id="s1">
+<div class="slide-in">
+  <div class="tag info ai">01 OVERVIEW</div>
+  <h2 class="stitle ai">캐시의 <span class="hl-c">핵심 개념</span></h2>
+  <div class="alert info ai">
+    <strong>정의:</strong> 자주 사용하거나 비용이 큰 연산의 결과를 <strong>가까운 곳에 임시로 저장해두고 재사용</strong>하는 기술
+  </div>
+  <div class="anbox ai">
+    <div class="anflow">
+      <div class="fbox per">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        사용자
+      </div>
+      <div class="farr fast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        빠름!
+      </div>
+      <div class="fbox cch">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        조리대 (캐시)
+      </div>
+      <div class="farr slow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        느림...
+      </div>
+      <div class="fbox org">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+        창고 (원본)
+      </div>
+    </div>
+    <p class="andesc">요리할 때 소금을 쓸 때마다 창고까지 가는 사람은 없다.<br>자주 쓰는 양념은 <strong style="color:var(--amber)">조리대 바로 옆(캐시)</strong>에 꺼내놓는다.</p>
+  </div>
+  <div class="g4 ai">
+    <div class="card">
+      <div class="ci" style="background:var(--cyan-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+      <h3 style="color:var(--cyan)">임시 저장</h3>
+      <p>성능 최적화를 위한 임시 데이터 사본을 보관합니다.</p>
+    </div>
+    <div class="card">
+      <div class="ci" style="background:var(--green-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
+      <h3 style="color:var(--green)">지역성 원리</h3>
+      <p>시간적 지역성과 공간적 지역성을 활용합니다.</p>
+    </div>
+    <div class="card">
+      <div class="ci" style="background:rgba(124,58,237,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
+      <h3 style="color:#c4b5fd">계층 구조</h3>
+      <p>속도-용량 트레이드오프에 따른 다단계 구조입니다.</p>
+    </div>
+    <div class="card">
+      <div class="ci" style="background:var(--amber-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+      <h3 style="color:var(--amber)">키-값 구조</h3>
+      <p>Key-Value 형태로 O(1) 조회를 가능하게 합니다.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S2: 왜 필요한가 -->
+<section class="slide" id="s2">
+<div class="slide-in">
+  <div class="tag info ai">02 WHY CACHE</div>
+  <h2 class="stitle ai">캐시가 왜 <span class="hl-c">필요한가</span></h2>
+  <p class="ssub ai">저장 계층마다 속도가 다르다. 캐시는 그 차이를 극복한다.</p>
+  <div class="g2 ai">
+    <div class="card" style="padding:20px">
+      <h3 style="margin-bottom:14px;color:var(--cyan)">저장 계층별 접근 속도</h3>
+      <div class="brow"><span class="blbl">CPU 캐시</span><div class="btrk"><div class="bfill grn" style="--w:4%"></div><span class="bval">~1ns</span></div></div>
+      <div class="brow"><span class="blbl">메모리 (RAM)</span><div class="btrk"><div class="bfill blu" style="--w:12%"></div><span class="bval">~100ns</span></div></div>
+      <div class="brow"><span class="blbl">SSD 디스크</span><div class="btrk"><div class="bfill amb" style="--w:50%"></div><span class="bval">~0.1ms</span></div></div>
+      <div class="brow"><span class="blbl">HDD 디스크</span><div class="btrk"><div class="bfill red" style="--w:75%"></div><span class="bval">수 ms</span></div></div>
+      <div class="brow"><span class="blbl">네트워크</span><div class="btrk"><div class="bfill red" style="--w:100%"></div><span class="bval">수십~수백ms</span></div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card">
+        <div class="ci" style="background:var(--cyan-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <h3 style="color:var(--cyan)">지연 시간 감소</h3>
+        <p>반복 요청을 캐시에서 응답하여 수백ms를 수ms 이하로 줄인다.</p>
+      </div>
+      <div class="card">
+        <div class="ci" style="background:var(--green-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <h3 style="color:var(--green)">부하 분산</h3>
+        <p>DB 직접 호출을 줄여 시스템 부하를 낮춘다.</p>
+      </div>
+      <div class="card">
+        <div class="ci" style="background:var(--amber-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+        <h3 style="color:var(--amber)">비용 절감</h3>
+        <p>외부 API, DB 쿼리 횟수를 줄여 비용을 낮춘다.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S3: 동작 원리 -->
+<section class="slide" id="s3">
+<div class="slide-in">
+  <div class="tag info ai">03 HOW IT WORKS</div>
+  <h2 class="stitle ai">캐시의 <span class="hl-c">동작 원리</span></h2>
+  <div class="ftabs ai">
+    <button class="ftab on" onclick="swTab('hit')">Cache Hit</button>
+    <button class="ftab" onclick="swTab('miss')">Cache Miss</button>
+  </div>
+  <div class="fpanel on ai" id="p-hit">
+    <div class="fsteps">
+      <div class="fnode cl">클라이언트</div>
+      <div class="fa">&rarr;<span>요청</span></div>
+      <div class="fnode ca">캐시</div>
+      <div class="fa" style="color:var(--green)">&rarr;<span>히트!</span></div>
+      <div class="fnode ok">응답</div>
+    </div>
+    <div class="fexp">
+      <span class="n">1</span>클라이언트가 데이터를 요청합니다.<br>
+      <span class="n">2</span>캐시에서 해당 키를 조회합니다.<br>
+      <span class="n">3</span>데이터가 존재(Hit)하면 캐시에서 바로 반환합니다.<br>
+      <strong style="color:var(--green)">DB에 접근하지 않으므로 매우 빠릅니다.</strong>
+    </div>
+  </div>
+  <div class="fpanel ai" id="p-miss">
+    <div class="fsteps">
+      <div class="fnode cl">클라이언트</div>
+      <div class="fa">&rarr;<span>요청</span></div>
+      <div class="fnode ca">캐시</div>
+      <div class="fa" style="color:var(--red)">&rarr;<span>미스</span></div>
+      <div class="fnode db">DB</div>
+      <div class="fa" style="color:var(--amber)">&rarr;<span>저장</span></div>
+      <div class="fnode ca">캐시</div>
+      <div class="fa">&rarr;<span>응답</span></div>
+      <div class="fnode ok">응답</div>
+    </div>
+    <div class="fexp">
+      <span class="n">1</span>클라이언트가 데이터를 요청합니다.<br>
+      <span class="n">2</span>캐시에 데이터가 <strong style="color:var(--red)">존재하지 않습니다(Miss).</strong><br>
+      <span class="n">3</span>원본(DB)에서 데이터를 가져옵니다.<br>
+      <span class="n">4</span>가져온 데이터를 캐시에 저장합니다.<br>
+      <span class="n">5</span>클라이언트에게 반환합니다.<br>
+      <strong style="color:var(--amber)">다음 동일 요청은 Cache Hit이 됩니다.</strong>
+    </div>
+  </div>
+  <div class="alert info ai" style="margin-top:16px;text-align:center">
+    <strong>캐시 히트율(Hit Rate) 목표: 80~95% 이상</strong>
+  </div>
+</div>
+</section>
+
+<!-- S4: 적용 계층 -->
+<section class="slide" id="s4">
+<div class="slide-in">
+  <div class="tag info ai">04 LAYERS</div>
+  <h2 class="stitle ai">캐시가 적용되는 <span class="hl-c">계층</span></h2>
+  <p class="ssub ai">캐시는 하드웨어부터 애플리케이션 레벨까지 다양한 계층에 존재한다.</p>
+  <div class="ai">
+    <div class="trow">
+      <div class="tico" style="background:var(--red-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg></div>
+      <div class="tinfo"><h3>CPU 캐시 (L1/L2/L3)</h3><p>CPU 칩 내부 초고속 SRAM. 가장 자주 접근하는 메모리 데이터를 저장.</p></div>
+      <div class="tmeta"><div class="tspd">~1ns</div><div class="tsz">KB~MB</div></div>
+    </div>
+    <div class="trow">
+      <div class="tico" style="background:var(--amber-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg></div>
+      <div class="tinfo"><h3>OS 페이지 캐시</h3><p>운영체제가 디스크 I/O를 줄이기 위해 메모리에 캐싱.</p></div>
+      <div class="tmeta"><div class="tspd">~μs</div><div class="tsz">GB급</div></div>
+    </div>
+    <div class="trow">
+      <div class="tico" style="background:var(--amber-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+      <div class="tinfo"><h3>브라우저 캐시</h3><p>CSS, JS, 이미지 등 정적 리소스를 로컬에 저장하여 재방문 시 빠르게.</p></div>
+      <div class="tmeta"><div class="tspd">~5ms</div><div class="tsz">수백MB</div></div>
+    </div>
+    <div class="trow">
+      <div class="tico" style="background:var(--green-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+      <div class="tinfo"><h3>CDN 캐시</h3><p>전 세계 엣지 서버에 콘텐츠를 캐싱하여 가장 가까운 노드에서 응답.</p></div>
+      <div class="tmeta"><div class="tspd">~20ms</div><div class="tsz">TB급</div></div>
+    </div>
+    <div class="trow">
+      <div class="tico" style="background:var(--cyan-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+      <div class="tinfo"><h3>애플리케이션 캐시</h3><p>Redis, Memcached 등 인메모리 스토어로 DB 쿼리 결과, 세션 등을 캐싱.</p></div>
+      <div class="tmeta"><div class="tspd">~1ms</div><div class="tsz">GB급</div></div>
+    </div>
+    <div class="trow">
+      <div class="tico" style="background:rgba(124,58,237,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
+      <div class="tinfo"><h3>DB 캐시 (Buffer Pool)</h3><p>DB 내부에서 자주 조회되는 데이터를 메모리에 유지.</p></div>
+      <div class="tmeta"><div class="tspd">~5ms</div><div class="tsz">GB급</div></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S5: 캐시 무효화 -->
+<section class="slide" id="s5">
+<div class="slide-in">
+  <div class="tag ai">05 INVALIDATION</div>
+  <h2 class="stitle ai">캐시 <span class="hl">무효화</span></h2>
+  <div class="alert warn ai" style="font-style:italic">
+    <strong>"컴퓨터 과학에서 어려운 문제는 두 가지뿐이다.</strong><br>
+    캐시 무효화와 이름 짓기." — Phil Karlton
+  </div>
+  <div class="g2 ai">
+    <div>
+      <div class="ttl-box">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h4 style="font-size:14px;font-weight:700;color:var(--cyan)">TTL (Time To Live)</h4>
+          <span style="font-size:12px;color:var(--text-dim);font-family:var(--font-mono)" id="ttlT">30.0s</span>
+        </div>
+        <div class="ttl-trk"><div class="ttl-fill alive" id="ttlB" style="width:100%"><span id="ttlTx">유효</span></div></div>
+        <div class="ttl-lbl"><span>저장 시점</span><span>만료</span></div>
+        <div class="ttl-btns">
+          <button class="tb on" onclick="setTTL(30)">30s</button>
+          <button class="tb" onclick="setTTL(15)">15s</button>
+          <button class="tb" onclick="setTTL(10)">10s</button>
+          <button class="tb" onclick="rstTTL()">RESET</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--green)">능동적 무효화</h3>
+        <p>원본 데이터 변경 시 해당 캐시를 즉시 삭제하거나 갱신합니다.<br>정확하지만, 어떤 캐시 키를 무효화할지 정확히 파악해야 합니다.</p>
+      </div>
+    </div>
+    <div class="lru-box">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h4 style="font-size:14px;font-weight:700;color:var(--cyan)">LRU 캐시 시뮬레이터</h4>
+        <span style="font-size:12px;color:var(--text-dim)">용량: 4</span>
+      </div>
+      <div class="lru-slots" id="lruS">
+        <div class="lru-s">-</div><div class="lru-s">-</div>
+        <div class="lru-s">-</div><div class="lru-s">-</div>
+      </div>
+      <p style="font-size:11px;color:var(--text-dim);margin-bottom:8px">왼쪽 = 최근 | 오른쪽 = 제거 대상</p>
+      <div class="lru-keys">
+        <button class="lk" onclick="la('A')">A</button>
+        <button class="lk" onclick="la('B')">B</button>
+        <button class="lk" onclick="la('C')">C</button>
+        <button class="lk" onclick="la('D')">D</button>
+        <button class="lk" onclick="la('E')">E</button>
+        <button class="lk" onclick="la('F')">F</button>
+        <button class="lk" onclick="la('G')">G</button>
+        <button class="lk" onclick="lr()" style="width:auto;padding:0 10px;font-size:10px">RESET</button>
+      </div>
+      <div class="lru-log" id="lruL"></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S6: 전략 패턴 -->
+<section class="slide" id="s6">
+<div class="slide-in">
+  <div class="tag info ai">06 STRATEGY</div>
+  <h2 class="stitle ai">캐시 전략 <span class="hl-c">패턴</span></h2>
+  <p class="ssub ai">읽기/쓰기 방식에 따라 전략을 선택한다. 카드를 클릭하여 흐름을 확인하세요.</p>
+  <div class="g2 ai">
+    <div class="sc" onclick="showS('aside')">
+      <div class="sh">
+        <div class="sico" style="background:var(--cyan-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+        <div><div class="sn-t">Cache-Aside</div><div class="se">지연 로딩</div></div>
+      </div>
+      <div class="sd">앱이 직접 캐시를 관리합니다. 미스 시 앱이 DB를 조회하고 캐시에 저장.</div>
+      <div class="stags"><span class="st u">읽기 성능↑</span><span class="st u">범용적</span><span class="st d">코드 복잡↑</span></div>
+    </div>
+    <div class="sc" onclick="showS('read')">
+      <div class="sh">
+        <div class="sico" style="background:var(--green-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+        <div><div class="sn-t">Read-Through</div><div class="se">캐시가 자동 로드</div></div>
+      </div>
+      <div class="sd">캐시 미스 시 캐시 레이어가 자동으로 DB에서 데이터를 읽어 저장합니다.</div>
+      <div class="stags"><span class="st u">코드 단순↑</span><span class="st d">콜드 스타트 지연</span></div>
+    </div>
+    <div class="sc" onclick="showS('write')">
+      <div class="sh">
+        <div class="sico" style="background:var(--amber-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <div><div class="sn-t">Write-Through</div><div class="se">캐시+DB 동시 기록</div></div>
+      </div>
+      <div class="sd">쓰기 시 캐시와 DB에 동시에 반영합니다. 데이터 일관성이 높습니다.</div>
+      <div class="stags"><span class="st u">일관성↑</span><span class="st d">쓰기 성능↓</span></div>
+    </div>
+    <div class="sc" onclick="showS('behind')">
+      <div class="sh">
+        <div class="sico" style="background:rgba(124,58,237,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div><div class="sn-t">Write-Behind</div><div class="se">비동기 DB 반영</div></div>
+      </div>
+      <div class="sd">캐시에만 먼저 기록 후, 비동기로 DB에 반영합니다.</div>
+      <div class="stags"><span class="st u">쓰기 성능↑</span><span class="st d">데이터 유실 위험</span></div>
+    </div>
+  </div>
+  <div class="apanel" id="sPanel">
+    <div class="sv-header">
+      <div style="font-size:13px;font-weight:700;color:var(--cyan)" id="sTitle"></div>
+    </div>
+    <div class="acanvas" id="sCanvas"></div>
+    <div class="asteps" id="sSteps"></div>
+  </div>
+</div>
+</section>
+
+<!-- S7: 주의점 -->
+<section class="slide" id="s7">
+<div class="slide-in">
+  <div class="tag ai">07 PITFALLS</div>
+  <h2 class="stitle ai">캐시 사용 시 <span class="hl">주의점</span></h2>
+  <p class="ssub ai">캐시는 강력하지만, 잘못 쓰면 장애의 원인이 된다.</p>
+  <div class="g3 ai">
+    <div class="pcard">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        캐시 스탬피드
+      </h3>
+      <p>TTL 만료 또는 캐시 다운 시 모든 요청이 동시에 DB로 몰려 장애를 유발합니다.</p>
+      <div class="psol">대응: 락으로 한 요청만 DB 조회, 나머지 대기. 또는 TTL 만료 전에 미리 갱신.</div>
+    </div>
+    <div class="pcard">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        캐시 침투
+      </h3>
+      <p>존재하지 않는 데이터 요청이 매번 DB까지 도달하여 캐시 효과가 없어집니다.</p>
+      <div class="psol">대응: null 값을 캐시에 저장하거나, 블룸 필터(Bloom Filter)로 사전 필터링.</div>
+    </div>
+    <div class="pcard">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        캐시 눈사태
+      </h3>
+      <p>다수 키의 TTL이 동시에 만료되어 대량 요청이 한꺼번에 DB로 몰리는 현상.</p>
+      <div class="psol">대응: 각 키의 TTL에 랜덤 오프셋을 추가하여 만료 시점을 분산.</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S8: 로컬 vs 리모트 -->
+<section class="slide" id="s8">
+<div class="slide-in">
+  <div class="tag info ai">08 LOCAL vs REMOTE</div>
+  <h2 class="stitle ai">로컬 캐시 vs <span class="hl-c">리모트 캐시</span></h2>
+  <p class="ssub ai">Caffeine은 "집 안의 서랍장", Redis는 "공용 창고"로 생각하면 된다.</p>
+  <div class="g2 ai">
+    <div class="cmp" style="border-color:var(--cyan-dim)">
+      <h3 style="color:var(--cyan)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" style="width:18px;height:18px"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        Caffeine (로컬)
+      </h3>
+      <div class="meta">"집 안의 서랍장" — 빠르지만 개인용</div>
+      <div class="crow"><span class="k">접근 속도</span><span class="v" style="color:var(--green)">나노초 (ns)</span></div>
+      <div class="crow"><span class="k">저장 위치</span><span class="v">JVM 힙 메모리</span></div>
+      <div class="crow"><span class="k">공유 범위</span><span class="v">단일 인스턴스</span></div>
+      <div class="crow"><span class="k">장점</span><span class="v" style="color:var(--green)">극도로 빠름</span></div>
+      <div class="crow"><span class="k">한계</span><span class="v" style="color:var(--red)">인스턴스 간 불일치</span></div>
+    </div>
+    <div class="cmp" style="border-color:rgba(124,58,237,.4)">
+      <h3 style="color:#c4b5fd">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2" style="width:18px;height:18px"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        Redis (리모트)
+      </h3>
+      <div class="meta">"공용 창고" — 느리지만 공동 사용 가능</div>
+      <div class="crow"><span class="k">접근 속도</span><span class="v" style="color:var(--cyan)">밀리초 (ms)</span></div>
+      <div class="crow"><span class="k">저장 위치</span><span class="v">외부 서버 메모리</span></div>
+      <div class="crow"><span class="k">공유 범위</span><span class="v">모든 인스턴스 공유</span></div>
+      <div class="crow"><span class="k">장점</span><span class="v" style="color:var(--green)">데이터 일관성, 풍부한 자료구조</span></div>
+      <div class="crow"><span class="k">한계</span><span class="v" style="color:var(--red)">네트워크 지연, 메모리 비용</span></div>
+    </div>
+  </div>
+  <div class="alert info ai" style="margin-top:16px">
+    <strong>실무 권장:</strong> Caffeine(L1)과 Redis(L2)를 조합한 멀티 레벨 캐시 전략이 성능과 일관성을 모두 달성하는 최선이다.
+  </div>
+</div>
+</section>
+
+<!-- S9: 정리 -->
+<section class="slide" id="s9">
+<div class="slide-in">
+  <div class="tag safe ai">09 SUMMARY</div>
+  <h2 class="stitle ai">멀티 레벨 캐시와 <span class="hl-g">핵심 정리</span></h2>
+  <p class="ssub ai">실무에서는 Caffeine과 Redis를 함께 사용하는 멀티 레벨 전략이 효과적이다.</p>
+  <div class="mlflow ai">
+    <div class="mlnode l1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      L1: Caffeine<br><span style="font-size:11px;font-weight:400">나노초 응답</span>
+    </div>
+    <div class="mlarr">&rarr;<span>미스</span></div>
+    <div class="mlnode l2">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      L2: Redis<br><span style="font-size:11px;font-weight:400">밀리초 응답</span>
+    </div>
+    <div class="mlarr">&rarr;<span>미스</span></div>
+    <div class="mlnode l3">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/></svg>
+      DB: MySQL 등<br><span style="font-size:11px;font-weight:400">수십 ms</span>
+    </div>
+  </div>
+  <div class="g3 ai">
+    <div class="card" style="text-align:center">
+      <div class="ci" style="background:var(--green-pale);margin:0 auto 10px"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+      <h3 style="color:var(--green)">성능</h3>
+      <p>핫 데이터는 나노초 내 응답<br>DB 요청 최소화</p>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ci" style="background:var(--cyan-pale);margin:0 auto 10px"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
+      <h3 style="color:var(--cyan)">일관성</h3>
+      <p>TTL, Pub/Sub 등으로<br>캐시 동기화 관리</p>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ci" style="background:var(--amber-pale);margin:0 auto 10px"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+      <h3 style="color:var(--amber)">트레이드오프</h3>
+      <p>성능 향상과 데이터 정합성<br>사이의 균형이 핵심</p>
+    </div>
+  </div>
+  <div class="sum-banner ai">
+    <h3>캐시는 빠른 곳에 복사본을 두어 느린 곳 접근을 줄이는 기술</h3>
+    <p>성능 향상을 제공하지만 데이터 정합성 관리라는 복잡성이 따른다.<br>Caffeine(서랍장)과 Redis(공용 창고)를 조합해 성능과 일관성을 모두 달성하는 것이 중요하다.</p>
+  </div>
+</div>
+</section>
+
+</div>
+
+<div class="ctrls">
+  <button class="cb" id="pBtn" onclick="prev()" disabled>PREV</button>
+  <span class="cc" id="ctr">1 / 10</span>
+  <button class="cb" id="nBtn" onclick="next()">NEXT</button>
+</div>
+
+<script src="../nav.js"></script>
+<script>
+// ── FLOW TABS (S3) ──
+function swTab(t){
+  document.querySelectorAll('.ftab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.fpanel').forEach(p=>p.classList.remove('on'));
+  if(t==='hit'){
+    document.querySelectorAll('.ftab')[0].classList.add('on');
+    document.getElementById('p-hit').classList.add('on');
+  } else {
+    document.querySelectorAll('.ftab')[1].classList.add('on');
+    document.getElementById('p-miss').classList.add('on');
+  }
+}
+
+// ── TTL DEMO (S5) ──
+let ttlI=null,ttlT=30,ttlR=30;
+function startTTL(){
+  clearInterval(ttlI);ttlR=ttlT;uTTL();
+  ttlI=setInterval(()=>{ttlR-=.1;if(ttlR<=0){ttlR=0;clearInterval(ttlI)}uTTL()},100);
+}
+function uTTL(){
+  const b=document.getElementById('ttlB'),tx=document.getElementById('ttlTx'),tm=document.getElementById('ttlT');
+  const p=(ttlR/ttlT)*100;
+  b.style.width=p+'%';
+  tm.textContent=ttlR.toFixed(1)+'s';
+  if(ttlR<=0){b.className='ttl-fill expired';tx.textContent='만료됨'}
+  else if(p<25){b.className='ttl-fill expiring';tx.textContent='만료 임박'}
+  else{b.className='ttl-fill alive';tx.textContent='유효'}
+}
+function setTTL(v){
+  ttlT=v;
+  document.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
+  event.target.classList.add('on');
+  startTTL();
+}
+function rstTTL(){startTTL()}
+startTTL();
+
+// ── LRU SIMULATOR (S5) ──
+let lru=[],CAP=4;
+function la(k){
+  const lg=document.getElementById('lruL');
+  const i=lru.indexOf(k);
+  if(i!==-1){
+    lru.splice(i,1);lru.unshift(k);rl('hit',k);
+    lg.innerHTML='<div class="lh">히트: "'+k+'"</div>'+lg.innerHTML;
+  } else {
+    let ev=null;
+    if(lru.length>=CAP)ev=lru.pop();
+    lru.unshift(k);rl('miss',k);
+    lg.innerHTML='<div class="lm">미스: "'+k+'"</div>'+(ev?'<div class="le">제거: "'+ev+'"</div>':'')+lg.innerHTML;
+  }
+  while(lg.children.length>12)lg.removeChild(lg.lastChild);
+}
+function rl(a,k){
+  const c=document.getElementById('lruS');c.innerHTML='';
+  for(let i=0;i<CAP;i++){
+    const s=document.createElement('div');s.className='lru-s';
+    if(i<lru.length){
+      s.textContent=lru[i];s.classList.add('f');
+      if(lru[i]===k)s.classList.add(a==='hit'?'hit':'hit');
+    } else s.textContent='-';
+    c.appendChild(s);
+  }
+}
+function lr(){
+  lru=[];document.getElementById('lruL').innerHTML='';
+  const c=document.getElementById('lruS');c.innerHTML='';
+  for(let i=0;i<CAP;i++){const s=document.createElement('div');s.className='lru-s';s.textContent='-';c.appendChild(s);}
+}
+
+// ── STRATEGY ANIMATION (S6) ──
+const ST={
+  aside:{title:'Cache-Aside — 읽기 흐름',steps:[
+    {n:[0,1],l:[0],t:'앱이 캐시에 조회'},
+    {n:[1],l:[],t:'캐시 확인 (HIT이면 바로 반환)'},
+    {n:[1,2],l:[1],t:'MISS → 앱이 DB에 직접 조회'},
+    {n:[2],l:[],t:'DB에서 데이터 반환'},
+    {n:[0,1],l:[2],t:'앱이 캐시에 저장 후 응답'}
+  ]},
+  read:{title:'Read-Through — 읽기 흐름',steps:[
+    {n:[0,1],l:[0],t:'앱이 캐시에 조회'},
+    {n:[1],l:[],t:'캐시 확인 (HIT이면 바로 반환)'},
+    {n:[1,2],l:[1],t:'MISS → 캐시가 자동으로 DB 조회'},
+    {n:[1,2],l:[1],t:'DB 데이터를 캐시에 자동 저장'},
+    {n:[0,1],l:[2],t:'캐시가 앱에 반환'}
+  ]},
+  write:{title:'Write-Through — 쓰기 흐름',steps:[
+    {n:[0,1],l:[0],t:'앱이 캐시에 쓰기'},
+    {n:[1],l:[],t:'캐시에 데이터 저장'},
+    {n:[1,2],l:[1],t:'캐시가 DB에 동기적으로 쓰기'},
+    {n:[2],l:[],t:'DB 쓰기 완료 대기'},
+    {n:[0],l:[2],t:'모두 완료 후 응답 반환'}
+  ]},
+  behind:{title:'Write-Behind — 쓰기 흐름',steps:[
+    {n:[0,1],l:[0],t:'앱이 캐시에 쓰기'},
+    {n:[1],l:[],t:'캐시에만 즉시 저장'},
+    {n:[0],l:[2],t:'앱에 즉시 응답 (빠름!)'},
+    {n:[1],l:[],t:'일정 시간 후...'},
+    {n:[1,2],l:[1],t:'비동기로 DB에 반영'}
+  ]}
+};
+let sAnim=null;
+function showS(key){
+  document.querySelectorAll('.sc').forEach(c=>c.classList.remove('sel'));
+  const idx=['aside','read','write','behind'].indexOf(key);
+  document.querySelectorAll('.sc')[idx].classList.add('sel');
+  const s=ST[key];
+  const panel=document.getElementById('sPanel');
+  const canvas=document.getElementById('sCanvas');
+  const steps=document.getElementById('sSteps');
+  document.getElementById('sTitle').textContent=s.title;
+
+  const names=['앱','캐시','DB'];
+  const clrs=['cl','ca','db'];
+  const icons=[
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>'
+  ];
+  let h='';
+  names.forEach((nm,i)=>{
+    if(i>0)h+=`<div class="aline" id="al${i-1}"></div>`;
+    h+=`<div class="anode fnode ${clrs[i]}" id="an${i}">${icons[i]}${nm}</div>`;
+  });
+  canvas.innerHTML=h;
+
+  let sh='';
+  s.steps.forEach((_,i)=>sh+=`<span class="sn" id="ss${i}">${i+1}</span>${_.t}<br>`);
+  steps.innerHTML=sh;
+  panel.classList.add('vis');
+
+  if(sAnim)clearTimeout(sAnim);
+  let step=0;
+  function tick(){
+    names.forEach((_,i)=>{const el=document.getElementById('an'+i);if(el)el.classList.remove('lit','glow')});
+    for(let i=0;i<2;i++){const el=document.getElementById('al'+i);if(el)el.classList.remove('lit')}
+    s.steps.forEach((_,i)=>{const el=document.getElementById('ss'+i);if(el)el.classList.remove('lit')});
+    if(step>=s.steps.length)step=0;
+    const c=s.steps[step];
+    c.n.forEach(n=>{const el=document.getElementById('an'+n);if(el){el.classList.add('lit');if(n===c.n[c.n.length-1])el.classList.add('glow')}});
+    c.l.forEach(l=>{const el=document.getElementById('al'+l);if(el)el.classList.add('lit')});
+    const se=document.getElementById('ss'+step);if(se)se.classList.add('lit');
+    step++;sAnim=setTimeout(tick,1500);
+  }
+  tick();
+}
+</script>
+</body>
+</html>
