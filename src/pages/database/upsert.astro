@@ -164,18 +164,18 @@ const sections = [
         </tr>
         <tr>
           <td style="font-weight:700">Auto Increment PK</td>
-          <td><span class="badge good">변하지 않음</span></td>
-          <td><span class="badge bad">변경됨 (새 값 할당)</span></td>
+          <td><strong style="color:var(--green)">변하지 않음</strong></td>
+          <td><strong style="color:var(--red)">변경됨 (새 값 할당)</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">명시하지 않은 컬럼</td>
-          <td><span class="badge good">기존 값 유지</span></td>
-          <td><span class="badge bad">기본값(DEFAULT)으로 초기화</span></td>
+          <td><strong style="color:var(--green)">기존 값 유지</strong></td>
+          <td><strong style="color:var(--red)">기본값(DEFAULT)으로 초기화</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">Foreign Key CASCADE</td>
-          <td><span class="badge good">영향 없음</span></td>
-          <td><span class="badge bad">ON DELETE CASCADE 연쇄 발생</span></td>
+          <td><strong style="color:var(--green)">영향 없음</strong></td>
+          <td><strong style="color:var(--red)">ON DELETE CASCADE 연쇄 발생</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">발생 트리거</td>
@@ -251,13 +251,13 @@ const sections = [
       <tbody>
         <tr>
           <td style="font-weight:700;color:var(--cyan)">Primary Key 충돌</td>
-          <td><span class="badge good">Exclusive Index-Record Lock</span></td>
+          <td><strong style="color:var(--green)">Exclusive Index-Record Lock</strong></td>
           <td>해당 레코드만</td>
           <td>PK는 Gap이 없으므로 Record Lock만으로 충분</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--amber)">Unique Key 충돌</td>
-          <td><span class="badge mid">Exclusive Next-Key Lock</span></td>
+          <td><strong style="color:var(--amber)">Exclusive Next-Key Lock</strong></td>
           <td>레코드 + Gap</td>
           <td>Phantom 방지를 위해 앞뒤 Gap까지 잠금</td>
         </tr>
@@ -350,7 +350,7 @@ const sections = [
 <span class="kw">ON DUPLICATE KEY UPDATE</span>
   name = <span class="fn">VALUES</span>(name);</pre>
       </div>
-      <p class="body-text" style="margin-top:10px">email UK만 충돌. id=1 행이 UPDATE되고 name이 Alice2로 바뀐다. <span class="badge good">예상대로 동작</span></p>
+      <p class="body-text" style="margin-top:10px">email UK만 충돌. id=1 행이 UPDATE되고 name이 Alice2로 바뀐다. <strong style="color:var(--green)">예상대로 동작</strong></p>
     </div>
     <div class="card">
       <div class="code-block" style="margin:0">
@@ -363,7 +363,7 @@ const sections = [
 <span class="kw">ON DUPLICATE KEY UPDATE</span>
   name = <span class="fn">VALUES</span>(name);</pre>
       </div>
-      <p class="body-text" style="margin-top:10px">email은 id=1(Alice), phone은 id=2(Bob)과 충돌. <span class="badge bad">비결정적(non-deterministic) 동작 — 어떤 행이 업데이트될지 보장 없음</span></p>
+      <p class="body-text" style="margin-top:10px">email은 id=1(Alice), phone은 id=2(Bob)과 충돌. <strong style="color:var(--red)">비결정적(non-deterministic) 동작 — 어떤 행이 업데이트될지 보장 없음</strong></p>
     </div>
   </div>
 
@@ -502,22 +502,22 @@ spring:
           <td style="font-weight:700">@Modifying + Native Query</td>
           <td>단건 ~ 수십 건</td>
           <td><code style="font-family:var(--font-mono);font-size:11px">clearAutomatically=true</code> 필요</td>
-          <td><span class="badge good">낮음</span></td>
+          <td><strong style="color:var(--green)">낮음</strong></td>
           <td>보통</td>
         </tr>
         <tr>
           <td style="font-weight:700">JdbcTemplate Bulk</td>
           <td>수천 ~ 수만 건</td>
           <td>별도 <code style="font-family:var(--font-mono);font-size:11px">em.clear()</code> 필요</td>
-          <td><span class="badge mid">보통</span></td>
+          <td><strong style="color:var(--amber)">보통</strong></td>
           <td>높음</td>
         </tr>
         <tr>
           <td style="font-weight:700">batchUpdate + rewriteBatch</td>
           <td>수만 건 이상</td>
           <td>별도 <code style="font-family:var(--font-mono);font-size:11px">em.clear()</code> 필요</td>
-          <td><span class="badge mid">보통</span></td>
-          <td><span class="badge good">최고</span></td>
+          <td><strong style="color:var(--amber)">보통</strong></td>
+          <td><strong style="color:var(--green)">최고</strong></td>
         </tr>
       </tbody>
     </table>
@@ -793,18 +793,18 @@ spring:
         </tr>
         <tr>
           <td style="font-weight:700">Auto Increment PK</td>
-          <td><span class="badge good">유지됨</span></td>
-          <td><span class="badge bad">변경됨</span></td>
+          <td><strong style="color:var(--green)">유지됨</strong></td>
+          <td><strong style="color:var(--red)">변경됨</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">미지정 컬럼</td>
-          <td><span class="badge good">기존 값 유지</span></td>
-          <td><span class="badge bad">기본값 초기화</span></td>
+          <td><strong style="color:var(--green)">기존 값 유지</strong></td>
+          <td><strong style="color:var(--red)">기본값 초기화</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">FK CASCADE 위험</td>
-          <td><span class="badge good">없음</span></td>
-          <td><span class="badge bad">ON DELETE CASCADE 연쇄</span></td>
+          <td><strong style="color:var(--green)">없음</strong></td>
+          <td><strong style="color:var(--red)">ON DELETE CASCADE 연쇄</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">InnoDB Lock (UK 충돌)</td>
@@ -828,8 +828,8 @@ spring:
         </tr>
         <tr>
           <td style="font-weight:700">실무 권장</td>
-          <td><span class="badge good">O (항상)</span></td>
-          <td><span class="badge bad">X (지양)</span></td>
+          <td><strong style="color:var(--green)">O (항상)</strong></td>
+          <td><strong style="color:var(--red)">X (지양)</strong></td>
         </tr>
       </tbody>
     </table>

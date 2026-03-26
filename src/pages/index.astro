@@ -261,6 +261,18 @@ import { categories } from '../data/categories';
 
   @media (max-width: 768px) {
     .cat-grid { grid-template-columns: 1fr; }
-    .hero { min-height: 40vh; padding: 40px 20px 30px; }
+    .hero { min-height: auto; padding: 40px 20px 30px; }
+    .brand-sub { letter-spacing: 1.5px; font-size: 11px; }
+    .brand-desc { font-size: 14px; }
+    .cat-section { padding: 20px 0; }
+  }
+  @media (max-width: 480px) {
+    .hero { padding: 32px 16px 24px; }
+    .brand { font-size: clamp(32px, 10vw, 72px); }
+    .brand-icon { width: 56px; height: 56px; margin-bottom: 16px; }
+    .brand-icon svg { width: 24px; height: 24px; }
+    .brand-desc br { display: none; }
+    .lec-card { padding: 16px; }
+    .lec-card h3 { font-size: 14px; }
   }
 </style>

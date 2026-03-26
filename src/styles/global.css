@@ -212,6 +212,34 @@ body::before{content:'';position:fixed;inset:0;background:
 .pcard h3 svg{width:16px;height:16px;flex-shrink:0}
 .pcard p{font-size:14px;color:var(--text-sec);line-height:1.8}
 
+/* ── TABLE SCROLL WRAPPER ── */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:14px}
+.table-wrap .cmp-table{min-width:500px;margin-bottom:0}
+
 /* ── RESPONSIVE ── */
-@media(max-width:768px){.g2,.g3,.g4{grid-template-columns:1fr}.pc{grid-template-columns:1fr}}
+@media(max-width:768px){
+  .g2,.g3,.g4{grid-template-columns:1fr}
+  .pc{grid-template-columns:1fr}
+  .body-text{font-size:15px}
+  .ssub{font-size:14px}
+  .code-block{padding:12px 14px}
+  .code-block pre{font-size:11px}
+  .alert{padding:14px 16px;font-size:13px}
+  .def-box{padding:12px 16px;font-size:13px}
+  .quote{padding:14px 18px;font-size:13px}
+  .card{padding:16px}
+  .card p{font-size:14px}
+  .cmp-table th{font-size:12px;padding:10px 10px}
+  .cmp-table td{font-size:13px;padding:8px 10px}
+  .sum-banner{padding:18px}
+  .sum-banner p{font-size:14px}
+  .pcard{padding:14px}
+  .ap-card{padding:14px}
+}
+@media(max-width:480px){
+  .stitle{font-size:clamp(22px,6vw,32px)}
+  .htitle{font-size:clamp(32px,10vw,56px)}
+  .code-block{padding:10px 12px;border-radius:var(--r-md)}
+  .code-block pre{font-size:10px;line-height:1.8}
+}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}

@@ -28,15 +28,8 @@ export const categories: Category[] = [
     lectures: [],
   },
   {
-    key: 'jpa',
-    name: 'JPA',
-    href: '/jpa',
-    accentColor: 'cyan',
-    lectures: [],
-  },
-  {
     key: 'database',
-    name: 'Database',
+    name: 'Database & ORM',
     href: '/database',
     accentColor: 'cyan',
     lectures: [
@@ -44,6 +37,7 @@ export const categories: Category[] = [
       { title: 'Redo Log & Undo Log', subtitle: '트랜잭션의 내구성과 원자성을 보장하는 두 개의 로그', href: '/database/redo-undo-log' },
       { title: 'Transaction Isolation Level', subtitle: '정합성과 동시성의 줄다리기', href: '/database/isolation-level' },
       { title: 'UPSERT', subtitle: '있으면 UPDATE, 없으면 INSERT를 원자적으로 처리하는 패턴', href: '/database/upsert' },
+      { title: 'ID 생성 전략', subtitle: 'JPA의 IDENTITY, SEQUENCE, TABLE, UUID 전략 비교', href: '/database/id-strategy' },
     ],
   },
   {

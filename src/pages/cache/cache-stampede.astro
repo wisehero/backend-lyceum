@@ -218,10 +218,10 @@ const sections = [
     <table class="cmp-table">
       <thead><tr><th>전략</th><th>지연시간</th><th>오래된 데이터</th><th>복잡도</th><th>적합한 경우</th></tr></thead>
       <tbody>
-        <tr><td><strong>Mutex Lock</strong></td><td><span class="badge bad">증가</span></td><td><span class="badge good">없음</span></td><td><span class="badge good">낮음</span></td><td>트래픽 적고 정합성 중요</td></tr>
-        <tr><td><strong>Logical Exp</strong></td><td><span class="badge good">없음</span></td><td><span class="badge mid">있음</span></td><td><span class="badge mid">중간</span></td><td>대규모 읽기 중심 서비스</td></tr>
-        <tr><td><strong>PER</strong></td><td><span class="badge good">없음</span></td><td><span class="badge mid">있음</span></td><td><span class="badge bad">높음</span></td><td>갱신 비용 크고 TTL 긴 경우</td></tr>
-        <tr><td><strong>Proactive</strong></td><td><span class="badge good">없음</span></td><td><span class="badge good">없음</span></td><td><span class="badge good">낮음</span></td><td>키가 예측 가능하고 한정적</td></tr>
+        <tr><td><strong>Mutex Lock</strong></td><td><strong style="color:var(--red)">증가</strong></td><td><strong style="color:var(--green)">없음</strong></td><td><strong style="color:var(--green)">낮음</strong></td><td>트래픽 적고 정합성 중요</td></tr>
+        <tr><td><strong>Logical Exp</strong></td><td><strong style="color:var(--green)">없음</strong></td><td><strong style="color:var(--amber)">있음</strong></td><td><strong style="color:var(--amber)">중간</strong></td><td>대규모 읽기 중심 서비스</td></tr>
+        <tr><td><strong>PER</strong></td><td><strong style="color:var(--green)">없음</strong></td><td><strong style="color:var(--amber)">있음</strong></td><td><strong style="color:var(--red)">높음</strong></td><td>갱신 비용 크고 TTL 긴 경우</td></tr>
+        <tr><td><strong>Proactive</strong></td><td><strong style="color:var(--green)">없음</strong></td><td><strong style="color:var(--green)">없음</strong></td><td><strong style="color:var(--green)">낮음</strong></td><td>키가 예측 가능하고 한정적</td></tr>
       </tbody>
     </table>
   </div>

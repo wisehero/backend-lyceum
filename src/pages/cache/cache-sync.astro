@@ -451,30 +451,30 @@ const sections = [
       <tbody>
         <tr>
           <td><strong>TTL 기반</strong></td>
-          <td><span class="badge bad">수 초~수 분</span></td>
-          <td><span class="badge good">매우 낮음</span></td>
+          <td><strong style="color:var(--red)">수 초~수 분</strong></td>
+          <td><strong style="color:var(--green)">매우 낮음</strong></td>
           <td>해당 없음</td>
           <td>설정값, 공지사항, 코드 테이블</td>
         </tr>
         <tr>
           <td><strong>Pub/Sub + TTL</strong></td>
-          <td><span class="badge good">실시간</span></td>
-          <td><span class="badge mid">적당</span></td>
-          <td><span class="badge mid">가능</span> (TTL 안전망)</td>
+          <td><strong style="color:var(--green)">실시간</strong></td>
+          <td><strong style="color:var(--amber)">적당</strong></td>
+          <td><strong style="color:var(--amber)">가능</strong> (TTL 안전망)</td>
           <td>사용자 프로필, 상품 정보</td>
         </tr>
         <tr>
           <td><strong>Streams / MQ</strong></td>
-          <td><span class="badge good">실시간</span></td>
-          <td><span class="badge bad">높음</span></td>
-          <td><span class="badge good">없음</span></td>
+          <td><strong style="color:var(--green)">실시간</strong></td>
+          <td><strong style="color:var(--red)">높음</strong></td>
+          <td><strong style="color:var(--green)">없음</strong></td>
           <td>금융 데이터, 재고 수량</td>
         </tr>
         <tr>
           <td><strong>라이브러리</strong></td>
-          <td><span class="badge good">실시간</span></td>
-          <td><span class="badge good">낮음</span></td>
-          <td><span class="badge mid">가능</span> (내부 Pub/Sub)</td>
+          <td><strong style="color:var(--green)">실시간</strong></td>
+          <td><strong style="color:var(--green)">낮음</strong></td>
+          <td><strong style="color:var(--amber)">가능</strong> (내부 Pub/Sub)</td>
           <td>범용 (빠른 도입 필요 시)</td>
         </tr>
       </tbody>

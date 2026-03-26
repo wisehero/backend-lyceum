@@ -1,0 +1,932 @@
+---
+import BlogLayout from '../../layouts/BlogLayout.astro';
+const sections = [
+  { id: 'intro', title: '왜 ID 생성 전략이 중요한가' },
+  { id: 'identity', title: 'IDENTITY 전략' },
+  { id: 'sequence', title: 'SEQUENCE 전략' },
+  { id: 'table', title: 'TABLE 전략' },
+  { id: 'auto', title: 'AUTO 전략' },
+  { id: 'uuid-ulid', title: 'UUID / ULID' },
+  { id: 'comparison', title: '전략 비교 총정리' },
+  { id: 'bulk-insert', title: 'IDENTITY + Bulk INSERT' },
+  { id: 'risk', title: 'ID 전략 변경 리스크' },
+  { id: 'summary', title: '요약' },
+];
+---
+
+<BlogLayout title="ID 생성 전략" sections={sections} category="database">
+
+<!-- S0: HERO -->
+<section class="article-hero article-section" id="intro">
+<div class="hero-c">
+  <div class="hero-beacon ai">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="1"/><circle cx="8" cy="12" r="1"/><circle cx="16" cy="12" r="1"/></svg>
+  </div>
+  <h1 class="htitle ai">ID 생성 전략</h1>
+  <p class="hdesc ai">PK를 언제, 어디서, 어떻게 만드느냐에 따라 쓰기 지연·Batch 성능·인덱스 효율이 완전히 달라진다.<br>JPA의 네 가지 전략과 UUID/ULID까지, 선택의 근거를 이해한다.</p>
+</div>
+
+<div class="section-content" style="margin-top:40px">
+  <h2 class="stitle ai">왜 <span class="hl-c">ID 생성 전략</span>이 중요한가</h2>
+  <p class="ssub ai">JPA의 Persistence Context(영속성 컨텍스트)는 1차 캐시를 <code style="font-family:var(--font-mono);font-size:13px;background:var(--surface);padding:2px 6px;border-radius:4px">Map&lt;(Entity타입, PK), Entity&gt;</code> 구조로 관리한다. PK가 없으면 1차 캐시에 등록 자체가 불가능하다. 그러므로 <code style="font-family:var(--font-mono);font-size:13px;background:var(--surface);padding:2px 6px;border-radius:4px">em.persist()</code>를 호출하는 시점에 PK가 어떻게 결정되느냐에 따라 JPA의 핵심 동작 두 가지가 크게 영향을 받는다.</p>
+
+  <div class="g2 ai">
+    <div class="card">
+      <h3 style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:8px;color:var(--amber)">쓰기 지연 (Write-Behind)</h3>
+      <p class="body-text">트랜잭션 커밋 시점까지 INSERT SQL을 모아뒀다가 한 번에 플러시하는 최적화. PK를 persist 시점에 알 수 없으면 이 최적화를 사용할 수 없다.</p>
+    </div>
+    <div class="card">
+      <h3 style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:8px;color:var(--cyan)">JDBC Batch INSERT</h3>
+      <p class="body-text">여러 INSERT를 하나의 배치로 묶어 네트워크 왕복을 줄이는 최적화. 쓰기 지연이 불가능하면 Hibernate 기준으로 Batch INSERT도 함께 불가능해진다.</p>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">em.persist() 내부 흐름</h3>
+    <div class="code-block">
+      <pre><span class="cm">// em.persist() 호출 시 내부적으로 일어나는 일 (pseudo-code)</span>
+em.<span class="fn">persist</span>(entity);
+
+<span class="cm">// 1. PK 할당 — 전략에 따라 방법이 다름</span>
+<span class="tp">Long</span> pk = idGenerator.<span class="fn">generate</span>(entity); <span class="cm">// SEQUENCE: nextval 호출 / IDENTITY: INSERT 후 반환</span>
+entity.<span class="fn">setId</span>(pk);
+
+<span class="cm">// 2. 1차 캐시 등록</span>
+firstLevelCache.<span class="fn">put</span>(<span class="kw">new</span> <span class="tp">EntityKey</span>(<span class="tp">Member</span>.<span class="kw">class</span>, pk), entity);
+
+<span class="cm">// 3. 스냅샷 저장 (변경 감지용)</span>
+snapshot.<span class="fn">put</span>(pk, entity.<span class="fn">clone</span>());
+
+<span class="cm">// 4. INSERT SQL 처리 — 전략에 따라 즉시 or 지연</span>
+writeBeindQueue.<span class="fn">add</span>(<span class="str">"INSERT INTO member ..."</span>); <span class="cm">// SEQUENCE는 여기까지 지연됨</span>
+<span class="cm">// IDENTITY는 이미 1번에서 INSERT를 실행한 뒤 pk를 받아옴</span></pre>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:16px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">JPA가 제공하는 4가지 전략</h3>
+    <div class="strategy-list">
+      <div class="def-row">
+        <span class="def-step">1</span>
+        <div>
+          <strong style="font-family:var(--font-mono);color:var(--red)">IDENTITY</strong>
+          <p class="body-text" style="margin-top:4px">DB의 Auto Increment에 PK 생성을 위임한다. INSERT를 실행해야만 PK를 알 수 있다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step">2</span>
+        <div>
+          <strong style="font-family:var(--font-mono);color:var(--cyan)">SEQUENCE</strong>
+          <p class="body-text" style="margin-top:4px">DB Sequence 오브젝트에서 PK 값을 미리 조회한다. INSERT 없이 PK를 확정할 수 있다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step">3</span>
+        <div>
+          <strong style="font-family:var(--font-mono);color:var(--amber)">TABLE</strong>
+          <p class="body-text" style="margin-top:4px">별도의 키 생성 테이블로 Sequence를 흉내낸다. 모든 DB에서 동작하지만 Lock 경합 문제가 있다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step">4</span>
+        <div>
+          <strong style="font-family:var(--font-mono);color:var(--text-sec)">AUTO</strong>
+          <p class="body-text" style="margin-top:4px">Hibernate가 DB Dialect에 따라 위 세 가지 중 하나를 자동으로 선택한다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S1: IDENTITY -->
+<section class="article-section" id="identity">
+<div class="section-content">
+  <h2 class="stitle ai"><span class="hl-r">IDENTITY</span> 전략</h2>
+  <p class="ssub ai">DB의 Auto Increment 기능에 PK 생성을 완전히 위임하는 방식이다. MySQL에서 가장 흔하게 사용된다.</p>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">Entity 설정</h3>
+    <div class="code-block">
+      <pre><span class="ann">@Entity</span>
+<span class="kw">public class</span> <span class="tp">Member</span> &#123;
+
+    <span class="ann">@Id</span>
+    <span class="ann">@GeneratedValue</span>(strategy = <span class="tp">GenerationType</span>.<span class="str">IDENTITY</span>)
+    <span class="kw">private</span> <span class="tp">Long</span> id;
+
+    <span class="kw">private</span> <span class="tp">String</span> email;
+    <span class="kw">private</span> <span class="tp">String</span> name;
+&#125;</pre>
+    </div>
+    <p class="body-text" style="margin-top:10px">DB DDL에서는 <code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">id BIGINT AUTO_INCREMENT PRIMARY KEY</code>로 선언된다. PK 값 생성의 주체가 완전히 DB다.</p>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">핵심 제약 — INSERT 전까지 PK를 알 수 없다</h3>
+    <p class="body-text" style="margin-bottom:12px">IDENTITY 전략의 결정적 특징은 INSERT를 실행해야만 DB가 PK를 반환한다는 점이다. 따라서 Hibernate는 <code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">em.persist()</code> 호출 즉시 INSERT를 DB로 전송하고, 반환된 PK로 1차 캐시를 등록한다.</p>
+    <div class="code-block">
+      <pre><span class="cm">// IDENTITY 전략의 em.persist() 동작 흐름 (pseudo-code)</span>
+em.<span class="fn">persist</span>(member);
+
+<span class="cm">// ① INSERT 즉시 전송 (쓰기 지연 큐를 거치지 않음)</span>
+jdbc.<span class="fn">executeUpdate</span>(<span class="str">"INSERT INTO member (email, name) VALUES (?, ?)"</span>);
+
+<span class="cm">// ② DB가 생성한 PK 반환</span>
+<span class="tp">Long</span> generatedId = jdbc.<span class="fn">getGeneratedKeys</span>(); <span class="cm">// ex) 42</span>
+member.<span class="fn">setId</span>(generatedId);
+
+<span class="cm">// ③ PK가 확정된 뒤 1차 캐시 등록</span>
+firstLevelCache.<span class="fn">put</span>(<span class="kw">new</span> <span class="tp">EntityKey</span>(<span class="tp">Member</span>.<span class="kw">class</span>, 42L), member);</pre>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">단점 — 쓰기 지연 불가, JDBC Batch INSERT 불가</h3>
+    <p class="body-text" style="margin-bottom:12px">persist마다 즉시 INSERT가 나가므로 쓰기 지연 자체가 동작하지 않는다. Hibernate는 쓰기 지연 큐를 기반으로 Batch INSERT를 구성하기 때문에, IDENTITY 전략에서는 JDBC Batch INSERT도 함께 비활성화된다.</p>
+    <div class="code-block">
+      <pre><span class="cm">// IDENTITY 전략 — 10개 persist → 10번 개별 INSERT</span>
+<span class="kw">for</span> (<span class="kw">int</span> i = 0; i &lt; 10; i++) &#123;
+    em.<span class="fn">persist</span>(<span class="kw">new</span> <span class="tp">Member</span>(<span class="str">"user"</span> + i + <span class="str">"@example.com"</span>));
+    <span class="cm">// persist 호출할 때마다 DB 왕복 발생</span>
+    <span class="cm">// INSERT 1 → INSERT 2 → INSERT 3 → ... → INSERT 10</span>
+&#125;
+em.<span class="fn">flush</span>(); <span class="cm">// 이미 모두 전송됨 — 추가 SQL 없음</span></pre>
+    </div>
+  </div>
+
+  <div class="alert warn ai" style="margin-top:16px">
+    <strong>Batch INSERT 불가는 Hibernate 구조적 제약</strong><br>JDBC Batch INSERT가 불가능한 것은 Hibernate의 구조적 제약이다. Spring의 <code style="font-family:var(--font-mono);font-size:12px">JdbcTemplate.batchUpdate()</code>를 직접 사용하면 IDENTITY 전략 환경에서도 Bulk INSERT를 실행할 수 있다. 단, 이 경우 JPA의 1차 캐시와 동기화되지 않으므로 영속성 컨텍스트를 우회하는 것임을 인지해야 한다.
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">그럼에도 MySQL에서 가장 많이 쓰이는 이유</h3>
+    <p class="body-text">MySQL은 SEQUENCE 오브젝트를 지원하지 않아 SEQUENCE 전략을 쓸 수 없다. TABLE 전략은 Lock 경합 문제가 있다. AUTO 전략은 MySQL에서 결국 IDENTITY로 떨어진다. 결국 MySQL 환경에서는 IDENTITY가 사실상 유일한 현실적 선택지다. 단건 INSERT가 많은 OLTP 워크로드에서는 개별 INSERT가 크게 문제되지 않으며, 대량 INSERT가 필요한 경우에는 JdbcTemplate 우회로 해결한다.</p>
+  </div>
+</div>
+</section>
+
+<!-- S2: SEQUENCE -->
+<section class="article-section" id="sequence">
+<div class="section-content">
+  <h2 class="stitle ai"><span class="hl-c">SEQUENCE</span> 전략</h2>
+  <p class="ssub ai">DB의 Sequence 오브젝트에서 PK 값을 미리 조회해온다. Oracle과 PostgreSQL에서 사용할 수 있으며, IDENTITY와 달리 INSERT 없이도 PK를 확정할 수 있다는 것이 결정적 차이다.</p>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">Entity 설정</h3>
+    <div class="code-block">
+      <pre><span class="ann">@Entity</span>
+<span class="ann">@SequenceGenerator</span>(
+    name            = <span class="str">"member_seq_gen"</span>,
+    sequenceName    = <span class="str">"member_seq"</span>,
+    initialValue    = 1,
+    allocationSize  = 50   <span class="cm">// 핵심 최적화 옵션</span>
+)
+<span class="kw">public class</span> <span class="tp">Member</span> &#123;
+
+    <span class="ann">@Id</span>
+    <span class="ann">@GeneratedValue</span>(strategy = <span class="tp">GenerationType</span>.<span class="str">SEQUENCE</span>,
+                   generator = <span class="str">"member_seq_gen"</span>)
+    <span class="kw">private</span> <span class="tp">Long</span> id;
+
+    <span class="kw">private</span> <span class="tp">String</span> email;
+    <span class="kw">private</span> <span class="tp">String</span> name;
+&#125;</pre>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">IDENTITY와의 결정적 차이 — INSERT 없이 PK 확정</h3>
+    <p class="body-text" style="margin-bottom:12px">SEQUENCE 전략에서 <code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">em.persist()</code>는 DB Sequence에서 다음 값을 조회(<code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">nextval</code>)하고, 그 값을 PK로 확정한 뒤 1차 캐시에 등록한다. INSERT SQL은 쓰기 지연 큐에 저장되어 트랜잭션 커밋(또는 flush) 시점에 일괄 전송된다.</p>
+    <div class="code-block">
+      <pre><span class="cm">// SEQUENCE 전략의 em.persist() 동작 흐름 (pseudo-code)</span>
+em.<span class="fn">persist</span>(member);
+
+<span class="cm">// ① DB Sequence에서 다음 값 조회 (SELECT nextval('member_seq'))</span>
+<span class="tp">Long</span> pk = jdbc.<span class="fn">queryForObject</span>(<span class="str">"SELECT nextval('member_seq')"</span>); <span class="cm">// ex) 1</span>
+member.<span class="fn">setId</span>(pk);
+
+<span class="cm">// ② 1차 캐시 등록 — INSERT 없이 바로 등록 가능</span>
+firstLevelCache.<span class="fn">put</span>(<span class="kw">new</span> <span class="tp">EntityKey</span>(<span class="tp">Member</span>.<span class="kw">class</span>, 1L), member);
+
+<span class="cm">// ③ INSERT SQL은 쓰기 지연 큐에 저장</span>
+writeBeindQueue.<span class="fn">add</span>(<span class="str">"INSERT INTO member (id, email, name) VALUES (1, ?, ?)"</span>);
+
+<span class="cm">// ④ 트랜잭션 커밋/flush 시에 일괄 전송</span>
+<span class="cm">// → 쓰기 지연 + JDBC Batch INSERT 모두 가능</span></pre>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">allocationSize 최적화 — 매번 nextval을 호출하지 않는다</h3>
+    <p class="body-text" style="margin-bottom:12px">persist를 호출할 때마다 DB에 <code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">nextval</code>을 요청하면 결국 DB 왕복 횟수가 IDENTITY와 같아진다. <code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">allocationSize</code>는 이 문제를 해결한다. 한 번의 nextval 호출로 N개의 PK를 미리 확보하여 메모리에 캐싱한다.</p>
+    <div class="code-block">
+      <pre><span class="cm">// allocationSize=50 설정 시 동작 흐름</span>
+
+<span class="cm">// persist #1 → nextval 호출 → DB가 50 반환</span>
+<span class="cm">// Hibernate: "1~50을 메모리에 캐싱"</span>
+persist(member1); <span class="cm">// id=1, nextval 호출 (반환값: 50)</span>
+persist(member2); <span class="cm">// id=2, 메모리 캐시 사용 — DB 왕복 없음</span>
+persist(member3); <span class="cm">// id=3, 메모리 캐시 사용</span>
+<span class="cm">// ... 계속 메모리 캐시 사용 ...</span>
+persist(member50); <span class="cm">// id=50, 메모리 캐시 사용</span>
+
+<span class="cm">// persist #51 → 캐시 소진 → nextval 재호출 → DB가 100 반환</span>
+<span class="cm">// Hibernate: "51~100을 메모리에 캐싱"</span>
+persist(member51); <span class="cm">// id=51, nextval 호출 (반환값: 100)</span></pre>
+    </div>
+    <div class="alert info ai" style="margin-top:12px">
+      <strong>allocationSize = DB의 INCREMENT BY와 반드시 일치해야 한다</strong><br>DB Sequence의 INCREMENT BY 값과 JPA의 allocationSize가 다르면 PK 중복 또는 누락이 발생한다. DDL에서 <code style="font-family:var(--font-mono);font-size:12px">CREATE SEQUENCE member_seq INCREMENT BY 50</code>으로 선언하고, allocationSize도 50으로 맞춰야 한다. Hibernate 6에서는 <strong>pooled</strong> 방식을 사용한다. DB Sequence의 현재 값이 "해당 블록의 최댓값"을 나타내는 방식으로, allocationSize=50이면 DB nextval이 50을 반환할 때 Hibernate는 1~50을 캐싱한다.
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">SEQUENCE 전략의 단점</h3>
+    <div class="def-box">
+      <div class="def-row">
+        <span class="def-step" style="background:var(--red-muted,rgba(239,68,68,0.15));color:var(--red)">!</span>
+        <div>
+          <strong style="color:var(--red)">MySQL 미지원</strong>
+          <p class="body-text" style="margin-top:4px">MySQL은 Sequence 오브젝트를 지원하지 않는다. Oracle, PostgreSQL, H2 등에서만 사용 가능하다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step" style="background:var(--red-muted,rgba(239,68,68,0.15));color:var(--red)">!</span>
+        <div>
+          <strong style="color:var(--amber)">빈 번호 발생</strong>
+          <p class="body-text" style="margin-top:4px">트랜잭션 롤백 시 이미 할당한 Sequence 값은 회수되지 않는다. 1, 2, 3, 51, 52... 와 같이 중간에 빈 번호가 생길 수 있다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step" style="background:var(--red-muted,rgba(239,68,68,0.15));color:var(--red)">!</span>
+        <div>
+          <strong style="color:var(--amber)">allocationSize 설정 실수</strong>
+          <p class="body-text" style="margin-top:4px">DB INCREMENT BY와 allocationSize가 맞지 않으면 PK 충돌이 발생한다. 팀 전체가 설정을 공유하고 DDL 마이그레이션 시 함께 변경해야 한다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step" style="background:var(--red-muted,rgba(239,68,68,0.15));color:var(--red)">!</span>
+        <div>
+          <strong style="color:var(--amber)">다중 인스턴스 순서 불보장</strong>
+          <p class="body-text" style="margin-top:4px">서버 인스턴스가 여러 개일 때 각 인스턴스가 독립적으로 캐시를 보유하므로, INSERT 순서와 PK 순서가 반드시 일치하지 않는다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S3: TABLE -->
+<section class="article-section" id="table">
+<div class="section-content">
+  <h2 class="stitle ai"><span class="hl-a">TABLE</span> 전략</h2>
+  <p class="ssub ai">별도의 키 생성 전용 테이블을 만들어 Sequence 동작을 흉내낸다. 모든 DB에서 동작하지만 동시성 병목 문제 때문에 실무에서는 거의 사용하지 않는다.</p>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">Entity 설정</h3>
+    <div class="code-block">
+      <pre><span class="ann">@Entity</span>
+<span class="ann">@TableGenerator</span>(
+    name         = <span class="str">"member_tbl_gen"</span>,
+    table        = <span class="str">"id_generator"</span>,    <span class="cm">// 키 생성 테이블 이름</span>
+    pkColumnName = <span class="str">"gen_name"</span>,         <span class="cm">// 엔티티 구분 컬럼</span>
+    valueColumnName = <span class="str">"next_val"</span>,      <span class="cm">// 다음 PK 값 컬럼</span>
+    allocationSize = 1
+)
+<span class="kw">public class</span> <span class="tp">Member</span> &#123;
+
+    <span class="ann">@Id</span>
+    <span class="ann">@GeneratedValue</span>(strategy = <span class="tp">GenerationType</span>.<span class="str">TABLE</span>,
+                   generator = <span class="str">"member_tbl_gen"</span>)
+    <span class="kw">private</span> <span class="tp">Long</span> id;
+&#125;</pre>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">내부 동작 SQL</h3>
+    <div class="code-block">
+      <pre><span class="cm">-- 1. 키 생성 테이블 구조</span>
+<span class="kw">CREATE TABLE</span> id_generator (
+    gen_name  <span class="tp">VARCHAR</span>(50) <span class="kw">PRIMARY KEY</span>,
+    next_val  <span class="tp">BIGINT</span>
+);
+
+<span class="cm">-- 2. PK 조회 (SELECT FOR UPDATE → Exclusive Lock 획득)</span>
+<span class="kw">SELECT</span> next_val <span class="kw">FROM</span> id_generator
+<span class="kw">WHERE</span> gen_name = <span class="str">'member_tbl_gen'</span>
+<span class="kw">FOR UPDATE</span>;
+
+<span class="cm">-- 3. 값 증가 후 저장</span>
+<span class="kw">UPDATE</span> id_generator
+<span class="kw">SET</span>    next_val = next_val + 1
+<span class="kw">WHERE</span> gen_name = <span class="str">'member_tbl_gen'</span>;</pre>
+    </div>
+    <p class="body-text" style="margin-top:10px"><code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">SELECT FOR UPDATE</code>가 핵심이다. 한 트랜잭션이 키 생성 테이블의 행을 잠그는 동안 다른 트랜잭션은 대기해야 한다. 이것이 동시성 병목의 원인이다.</p>
+  </div>
+
+  <div class="ai" style="margin-top:16px">
+    <div class="g2">
+      <div class="card">
+        <h3 style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:8px;color:var(--green)">장점</h3>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px">
+          <li class="body-text">쓰기 지연과 JDBC Batch INSERT 가능</li>
+          <li class="body-text">MySQL, Oracle, PostgreSQL 등 모든 DB 호환</li>
+          <li class="body-text">allocationSize로 DB 왕복 최적화 가능</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:8px;color:var(--red)">단점</h3>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px">
+          <li class="body-text">SELECT FOR UPDATE 로 인한 Lock 경합</li>
+          <li class="body-text">동시 요청이 많을수록 병목 심화</li>
+          <li class="body-text">별도 테이블 생성·관리 필요</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert warn ai" style="margin-top:16px">
+    <strong>실무 비권장</strong><br>TABLE 전략은 DB 독립성을 확보할 수 있다는 이론적 장점이 있지만, 키 생성 테이블에 대한 Lock 경합이 높은 동시성 환경에서 심각한 병목이 된다. 실무에서는 거의 사용하지 않으며, DB가 SEQUENCE를 지원하지 않는 경우 UUID/ULID를 먼저 검토하는 것이 낫다.
+  </div>
+</div>
+</section>
+
+<!-- S4: AUTO -->
+<section class="article-section" id="auto">
+<div class="section-content">
+  <h2 class="stitle ai"><span class="hl-c">AUTO</span> 전략</h2>
+  <p class="ssub ai">Hibernate가 현재 연결된 DB의 Dialect를 보고 IDENTITY, SEQUENCE, TABLE 중 하나를 자동으로 선택한다. 편리해 보이지만 Hibernate 버전과 DB 변경에 취약하다.</p>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">Entity 설정</h3>
+    <div class="code-block">
+      <pre><span class="ann">@Entity</span>
+<span class="kw">public class</span> <span class="tp">Member</span> &#123;
+
+    <span class="ann">@Id</span>
+    <span class="ann">@GeneratedValue</span>(strategy = <span class="tp">GenerationType</span>.<span class="str">AUTO</span>)
+    <span class="cm">// 또는 strategy 생략 — AUTO가 기본값</span>
+    <span class="kw">private</span> <span class="tp">Long</span> id;
+&#125;</pre>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">Hibernate 버전별 선택 기준 차이</h3>
+    <table class="cmp-table">
+      <thead>
+        <tr>
+          <th>Hibernate 버전</th>
+          <th>MySQL</th>
+          <th>PostgreSQL / Oracle</th>
+          <th>H2</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700">Hibernate 5.x</td>
+          <td><strong style="color:var(--amber)">TABLE 또는 IDENTITY</strong></td>
+          <td><strong style="color:var(--cyan)">SEQUENCE</strong></td>
+          <td><strong style="color:var(--cyan)">SEQUENCE</strong></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Hibernate 6.x</td>
+          <td><strong style="color:var(--red)">IDENTITY</strong></td>
+          <td><strong style="color:var(--cyan)">SEQUENCE</strong></td>
+          <td><strong style="color:var(--cyan)">SEQUENCE</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="body-text" style="margin-top:10px">Hibernate 5에서 6으로 업그레이드하면 MySQL에서 AUTO의 동작이 달라질 수 있다. 기존에 TABLE 전략으로 동작하던 코드가 IDENTITY로 전환되면서 PK 생성 방식 자체가 바뀐다.</p>
+  </div>
+
+  <div class="alert warn ai" style="margin-top:16px">
+    <strong>실무 권장 — 명시적 전략 지정</strong><br>AUTO는 "지금 어떤 전략이 선택됐는지" 코드만 봐서는 알 수 없다. DB를 MySQL에서 PostgreSQL로 바꾸거나 Hibernate 버전을 올리면 동작이 달라져 예측하기 어려운 버그가 생긴다. 실무에서는 <strong>항상 전략을 명시적으로 지정</strong>하는 것을 권장한다.
+  </div>
+</div>
+</section>
+
+<!-- S5: UUID / ULID -->
+<section class="article-section" id="uuid-ulid">
+<div class="section-content">
+  <h2 class="stitle ai"><span class="hl-c">UUID</span> / <span class="hl-a">ULID</span></h2>
+  <p class="ssub ai">애플리케이션에서 직접 PK를 생성하는 방식이다. DB와의 통신 없이 PK를 확정할 수 있어 쓰기 지연과 Batch INSERT가 완벽하게 동작한다. 단, UUID v4는 무작위 삽입으로 인한 B+Tree 페이지 분할 문제가 있다.</p>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">UUID Entity 설정</h3>
+    <div class="code-block">
+      <pre><span class="ann">@Entity</span>
+<span class="kw">public class</span> <span class="tp">Member</span> &#123;
+
+    <span class="ann">@Id</span>
+    <span class="ann">@GeneratedValue</span>(strategy = <span class="tp">GenerationType</span>.<span class="str">UUID</span>) <span class="cm">// JPA 3.1+ (Hibernate 6+)</span>
+    <span class="ann">@Column</span>(columnDefinition = <span class="str">"BINARY(16)"</span>)           <span class="cm">// MySQL: 공간 최적화</span>
+    <span class="kw">private</span> <span class="tp">UUID</span> id;
+
+    <span class="kw">private</span> <span class="tp">String</span> email;
+    <span class="kw">private</span> <span class="tp">String</span> name;
+&#125;</pre>
+    </div>
+    <p class="body-text" style="margin-top:10px"><code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">BINARY(16)</code>으로 저장하면 UUID 문자열(36자)이 아닌 16바이트 이진 형식으로 저장되어 공간을 절약하고 인덱스 비교 속도도 빨라진다.</p>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <div class="g2">
+      <div class="card">
+        <h3 style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:8px;color:var(--green)">UUID / ULID 장점</h3>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px">
+          <li class="body-text">DB 통신 없이 PK 즉시 확정</li>
+          <li class="body-text">쓰기 지연 + JDBC Batch INSERT 완벽 동작</li>
+          <li class="body-text">DB 종류 무관하게 동작 — 완전한 DB 독립성</li>
+          <li class="body-text">분산 환경에서 중복 없이 글로벌 유니크 보장</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:8px;color:var(--red)">UUID v4 단점</h3>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px">
+          <li class="body-text">저장 공간 2배 이상 (8바이트 vs 16바이트+)</li>
+          <li class="body-text">완전 무작위 → B+Tree 페이지 분할 빈번</li>
+          <li class="body-text">사람이 읽기 어려운 값 — 디버깅 불편</li>
+          <li class="body-text">정렬 불가 → 시간순 조회 비효율</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">UUID v4 무작위 삽입이 B+Tree에 미치는 영향</h3>
+    <div class="code-block">
+      <pre><span class="cm">// Auto Increment — 순차 삽입 → B+Tree 마지막 페이지에만 추가</span>
+INSERT id=1  → B+Tree 오른쪽 끝에 추가
+INSERT id=2  → B+Tree 오른쪽 끝에 추가
+INSERT id=3  → B+Tree 오른쪽 끝에 추가
+<span class="cm">// 페이지 분할 거의 없음 — 인덱스 단편화 최소</span>
+
+<span class="cm">// UUID v4 — 무작위 삽입 → B+Tree 임의 위치에 삽입</span>
+INSERT id=550e8400-...  → B+Tree 중간 어딘가 삽입
+INSERT id=f47ac10b-...  → B+Tree 완전히 다른 위치
+INSERT id=3d2a11c0-...  → 또 다른 임의 위치
+<span class="cm">// 페이지가 꽉 찰 때마다 페이지 분할 발생 → 인덱스 단편화 심화</span>
+<span class="cm">// 디스크 Random I/O 증가 → 대용량에서 성능 저하</span></pre>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">ULID / UUID v7 — 시간 기반 정렬로 단점 완화</h3>
+    <p class="body-text" style="margin-bottom:12px">ULID(Universally Unique Lexicographically Sortable Identifier)와 UUID v7은 앞 부분에 밀리초 단위 타임스탬프를 포함한다. 삽입 순서가 시간 순서와 거의 일치하므로 B+Tree 페이지 분할이 크게 줄어든다. UUID v4의 고유성은 유지하면서 성능 단점을 상당 부분 해소한다.</p>
+    <div class="code-block">
+      <pre><span class="cm">// ULID 사전 생성 방식 (@PrePersist)</span>
+<span class="ann">@Entity</span>
+<span class="kw">public class</span> <span class="tp">Member</span> &#123;
+
+    <span class="ann">@Id</span>
+    <span class="ann">@Column</span>(length = 26)
+    <span class="kw">private</span> <span class="tp">String</span> id;
+
+    <span class="ann">@PrePersist</span>
+    <span class="kw">private void</span> <span class="fn">generateId</span>() &#123;
+        <span class="kw">if</span> (<span class="kw">this</span>.id == <span class="kw">null</span>) &#123;
+            <span class="kw">this</span>.id = <span class="tp">UlidCreator</span>.<span class="fn">getMonotonicUlid</span>().<span class="fn">toString</span>();
+            <span class="cm">// ex) "01ARZ3NDEKTSV4RRFFQ69G5FAV"</span>
+            <span class="cm">// 앞 10자리: 타임스탬프 → 시간 순 정렬 가능</span>
+            <span class="cm">// 뒤 16자리: 무작위 → 고유성 보장</span>
+        &#125;
+    &#125;
+&#125;</pre>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S6: COMPARISON -->
+<section class="article-section" id="comparison">
+<div class="section-content">
+  <h2 class="stitle ai">전략 <span class="hl-c">비교 총정리</span></h2>
+  <p class="ssub ai">각 전략을 8가지 핵심 기준으로 비교한다. 프로젝트의 DB 환경, 동시성 요구, 대량 INSERT 빈도에 따라 최적 전략이 달라진다.</p>
+
+  <div class="ai">
+    <div style="overflow-x:auto">
+      <table class="cmp-table">
+        <thead>
+          <tr>
+            <th>기준</th>
+            <th style="color:var(--red)">IDENTITY</th>
+            <th style="color:var(--cyan)">SEQUENCE</th>
+            <th style="color:var(--amber)">TABLE</th>
+            <th style="color:var(--text-sec)">UUID v4</th>
+            <th style="color:var(--green)">ULID / UUID v7</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-weight:700">PK 결정 시점</td>
+            <td><strong style="color:var(--red)">INSERT 후</strong></td>
+            <td><strong style="color:var(--green)">nextval 후</strong></td>
+            <td><strong style="color:var(--green)">SELECT 후</strong></td>
+            <td><strong style="color:var(--green)">persist 전</strong></td>
+            <td><strong style="color:var(--green)">persist 전</strong></td>
+          </tr>
+          <tr>
+            <td style="font-weight:700">쓰기 지연</td>
+            <td><strong style="color:var(--red)">불가</strong></td>
+            <td><strong style="color:var(--green)">가능</strong></td>
+            <td><strong style="color:var(--green)">가능</strong></td>
+            <td><strong style="color:var(--green)">가능</strong></td>
+            <td><strong style="color:var(--green)">가능</strong></td>
+          </tr>
+          <tr>
+            <td style="font-weight:700">JDBC Batch</td>
+            <td><strong style="color:var(--red)">불가 (Hibernate)</strong></td>
+            <td><strong style="color:var(--green)">가능</strong></td>
+            <td><strong style="color:var(--green)">가능</strong></td>
+            <td><strong style="color:var(--green)">가능</strong></td>
+            <td><strong style="color:var(--green)">가능</strong></td>
+          </tr>
+          <tr>
+            <td style="font-weight:700">DB 왕복 최적화</td>
+            <td><strong style="color:var(--red)">없음</strong></td>
+            <td><strong style="color:var(--green)">allocationSize</strong></td>
+            <td><strong style="color:var(--green)">allocationSize</strong></td>
+            <td><strong style="color:var(--green)">불필요</strong></td>
+            <td><strong style="color:var(--green)">불필요</strong></td>
+          </tr>
+          <tr>
+            <td style="font-weight:700">DB 호환성</td>
+            <td><strong style="color:var(--amber)">MySQL 중심</strong></td>
+            <td><strong style="color:var(--amber)">Oracle, PG 등</strong></td>
+            <td><strong style="color:var(--green)">모든 DB</strong></td>
+            <td><strong style="color:var(--green)">모든 DB</strong></td>
+            <td><strong style="color:var(--green)">모든 DB</strong></td>
+          </tr>
+          <tr>
+            <td style="font-weight:700">동시성</td>
+            <td><strong style="color:var(--green)">DB가 보장</strong></td>
+            <td><strong style="color:var(--green)">DB가 보장</strong></td>
+            <td><strong style="color:var(--red)">Lock 경합</strong></td>
+            <td><strong style="color:var(--green)">UUID 고유성</strong></td>
+            <td><strong style="color:var(--green)">UUID 고유성</strong></td>
+          </tr>
+          <tr>
+            <td style="font-weight:700">인덱스 성능</td>
+            <td><strong style="color:var(--green)">순차 — 우수</strong></td>
+            <td><strong style="color:var(--green)">순차 — 우수</strong></td>
+            <td><strong style="color:var(--green)">순차 — 우수</strong></td>
+            <td><strong style="color:var(--red)">무작위 — 페이지 분할</strong></td>
+            <td><strong style="color:var(--amber)">시간순 — 양호</strong></td>
+          </tr>
+          <tr>
+            <td style="font-weight:700">저장 공간</td>
+            <td><strong style="color:var(--green)">8바이트</strong></td>
+            <td><strong style="color:var(--green)">8바이트</strong></td>
+            <td><strong style="color:var(--green)">8바이트</strong></td>
+            <td><strong style="color:var(--red)">16바이트+</strong></td>
+            <td><strong style="color:var(--amber)">16~26바이트</strong></td>
+          </tr>
+          <tr>
+            <td style="font-weight:700">실무 사용</td>
+            <td><strong style="color:var(--green)">MySQL 표준</strong></td>
+            <td><strong style="color:var(--green)">Oracle/PG 표준</strong></td>
+            <td><strong style="color:var(--red)">비권장</strong></td>
+            <td><strong style="color:var(--amber)">분산 시스템</strong></td>
+            <td><strong style="color:var(--green)">신규 프로젝트 추천</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S7: BULK INSERT -->
+<section class="article-section" id="bulk-insert">
+<div class="section-content">
+  <h2 class="stitle ai">IDENTITY + <span class="hl-a">Bulk INSERT</span></h2>
+  <p class="ssub ai">IDENTITY 전략 환경(MySQL)에서 대량 데이터를 INSERT해야 하는 경우의 접근 방식. 규모에 따라 세 가지 수준으로 나눈다.</p>
+
+  <div class="ai">
+    <div class="def-box">
+      <div class="def-row">
+        <span class="def-step">소</span>
+        <div>
+          <strong style="color:var(--green)">소량 (수백 건)</strong>
+          <p class="body-text" style="margin-top:4px"><code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">em.persist()</code> 반복으로 충분하다. 개별 INSERT지만 건수가 적어 성능 문제가 없다. JPA의 1차 캐시와 변경 감지가 정상 동작한다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step">중</span>
+        <div>
+          <strong style="color:var(--amber)">중량 (수천~수만 건)</strong>
+          <p class="body-text" style="margin-top:4px">JPA 우회, <code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">JdbcTemplate.batchUpdate()</code>로 Bulk INSERT를 실행한다. 단일 SQL 왕복으로 처리량이 크게 향상된다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step">대</span>
+        <div>
+          <strong style="color:var(--red)">대량 (수십만 건 이상)</strong>
+          <p class="body-text" style="margin-top:4px">JdbcTemplate + 청크 분할. 청크 단위로 분할하여 트랜잭션과 메모리를 관리한다. 각 청크를 독립 트랜잭션으로 처리해 실패 시 해당 청크만 재시도할 수 있다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">JdbcTemplate Bulk INSERT 구현</h3>
+    <div class="code-block">
+      <pre><span class="ann">@Service</span>
+<span class="kw">public class</span> <span class="tp">MemberBulkService</span> &#123;
+
+    <span class="kw">private final</span> <span class="tp">JdbcTemplate</span> jdbcTemplate;
+
+    <span class="kw">public void</span> <span class="fn">bulkInsert</span>(<span class="tp">List</span>&lt;<span class="tp">MemberDto</span>&gt; members) &#123;
+        <span class="tp">String</span> sql = <span class="str">"INSERT INTO member (email, name) VALUES (?, ?)"</span>;
+
+        jdbcTemplate.<span class="fn">batchUpdate</span>(sql,
+            members,
+            1000, <span class="cm">// 청크 크기</span>
+            (<span class="tp">PreparedStatement</span> ps, <span class="tp">MemberDto</span> dto) -> &#123;
+                ps.<span class="fn">setString</span>(1, dto.<span class="fn">getEmail</span>());
+                ps.<span class="fn">setString</span>(2, dto.<span class="fn">getName</span>());
+            &#125;
+        );
+    &#125;
+&#125;</pre>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">Bulk INSERT 후 ID 돌려받기 문제</h3>
+    <p class="body-text" style="margin-bottom:12px">JdbcTemplate.batchUpdate()는 JPA 영속성 컨텍스트를 우회하기 때문에, 삽입된 행의 생성된 PK를 JPA 엔티티에 자동으로 반영하지 않는다. 생성된 ID를 애플리케이션에서 사용해야 하는 경우가 문제다.</p>
+    <div class="alert warn ai">
+      <strong>ID 돌려받기의 어려움</strong><br><code style="font-family:var(--font-mono);font-size:12px">KeyHolder</code>를 사용하면 단건 INSERT에서 생성된 PK를 받을 수 있지만, 대량 Bulk INSERT에서 각 행의 ID를 정확히 매핑하는 것은 번거롭고 오류가 발생하기 쉽다. MySQL의 <code style="font-family:var(--font-mono);font-size:12px">getGeneratedKeys()</code>는 Bulk INSERT 결과에서 첫 번째 ID만 반환하는 경우가 있어 신뢰성이 떨어진다.
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:20px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">더 나은 접근 — 설계로 ID 반환 문제 회피</h3>
+    <p class="body-text" style="margin-bottom:12px">Bulk INSERT 후 ID를 받아야 하는 상황 자체를 설계로 회피하는 것이 가장 깔끔한 해결책이다.</p>
+    <div class="def-box">
+      <div class="def-row">
+        <span class="def-step">A</span>
+        <div>
+          <strong style="color:var(--green)">UUID 사전 생성</strong>
+          <p class="body-text" style="margin-top:4px">INSERT 전에 애플리케이션에서 UUID를 직접 생성한다. Bulk INSERT 전에 이미 PK를 알고 있으므로 "INSERT 후 ID 반환" 문제가 사라진다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step">B</span>
+        <div>
+          <strong style="color:var(--cyan)">비즈니스 키 연결</strong>
+          <p class="body-text" style="margin-top:4px">INSERT 후 생성된 PK 대신 email, 주문번호 같은 비즈니스 키로 데이터를 참조하도록 설계한다. ID를 받아오는 흐름 자체를 없앤다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step">C</span>
+        <div>
+          <strong style="color:var(--amber)">JPA 순차 처리 허용</strong>
+          <p class="body-text" style="margin-top:4px">대량 INSERT가 드문 경우라면 Bulk INSERT를 포기하고 JPA em.persist()를 사용한다. 성능 이슈가 실제로 발생할 때 최적화한다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:16px">
+    <table class="cmp-table">
+      <thead>
+        <tr>
+          <th>방식</th>
+          <th>처리량</th>
+          <th>ID 반환</th>
+          <th>JPA 통합</th>
+          <th>적합한 상황</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700">em.persist() 반복</td>
+          <td><strong style="color:var(--amber)">보통</strong></td>
+          <td><strong style="color:var(--green)">자동</strong></td>
+          <td><strong style="color:var(--green)">완전</strong></td>
+          <td>소량 (수백 건)</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">JdbcTemplate batchUpdate</td>
+          <td><strong style="color:var(--green)">빠름</strong></td>
+          <td><strong style="color:var(--red)">수동 처리 필요</strong></td>
+          <td><strong style="color:var(--red)">우회</strong></td>
+          <td>중량 (수천~수만 건)</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">JdbcTemplate + 청크</td>
+          <td><strong style="color:var(--green)">매우 빠름</strong></td>
+          <td><strong style="color:var(--red)">수동 처리 필요</strong></td>
+          <td><strong style="color:var(--red)">우회</strong></td>
+          <td>대량 (수십만 건+)</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">UUID 사전 생성 + Bulk</td>
+          <td><strong style="color:var(--green)">매우 빠름</strong></td>
+          <td><strong style="color:var(--green)">사전 보유</strong></td>
+          <td><strong style="color:var(--amber)">선택적</strong></td>
+          <td>ID가 필요한 대량 INSERT</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</section>
+
+<!-- S8: RISK -->
+<section class="article-section" id="risk">
+<div class="section-content">
+  <h2 class="stitle ai">ID 전략 <span class="hl-r">변경 리스크</span></h2>
+  <p class="ssub ai">운영 중인 시스템에서 ID 전략을 바꾸는 것은 단순한 설정 변경이 아니다. 스키마, 데이터, 코드, 외부 시스템 전반에 걸친 대형 작업이다. 초기 설계 단계에서 신중하게 결정해야 하는 이유다.</p>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">1. 스키마 변경 + 데이터 마이그레이션</h3>
+    <p class="body-text" style="margin-bottom:10px">IDENTITY(BIGINT)에서 UUID(BINARY(16))로 전략을 바꾼다면 PK 컬럼의 데이터 타입 자체를 변경해야 한다. 기존 정수형 PK를 UUID로 변환하는 마이그레이션 스크립트가 필요하고, 대용량 테이블이라면 운영 중 스키마 변경(Online DDL)을 수행해야 한다.</p>
+  </div>
+
+  <div class="ai" style="margin-top:16px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">2. FK 연쇄 변경</h3>
+    <p class="body-text" style="margin-bottom:12px">PK 타입이 바뀌면 해당 PK를 참조하는 모든 FK 컬럼도 함께 바꿔야 한다. 테이블이 많을수록 변경 범위가 기하급수적으로 늘어난다.</p>
+    <div class="code-block">
+      <pre><span class="cm">-- member.id (PK) 타입 변경 → FK 컬럼 전부 변경 필요</span>
+member.id             <span class="cm">-- PK: BIGINT → BINARY(16)</span>
+  ↓ 참조
+order.member_id       <span class="cm">-- FK: BIGINT → BINARY(16)</span>
+review.member_id      <span class="cm">-- FK: BIGINT → BINARY(16)</span>
+point_history.member_id <span class="cm">-- FK: BIGINT → BINARY(16)</span>
+notification.member_id  <span class="cm">-- FK: BIGINT → BINARY(16)</span>
+<span class="cm">-- ... N개 테이블 전부 변경</span></pre>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:16px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">3. 인덱스 전체 재구성</h3>
+    <p class="body-text">PK 타입이 바뀌면 PK 인덱스는 물론 PK를 포함하는 모든 복합 인덱스, FK 인덱스도 재구성된다. InnoDB 클러스터 인덱스 구조상 PK 변경은 테이블 전체 재구성을 의미한다. 대용량 테이블에서는 수 시간에서 수십 시간이 걸릴 수 있다.</p>
+  </div>
+
+  <div class="ai" style="margin-top:16px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">4. 애플리케이션 코드 전면 수정</h3>
+    <p class="body-text" style="margin-bottom:12px">PK 타입 변경은 코드 전 계층에 영향을 미친다.</p>
+    <div class="code-block">
+      <pre><span class="cm">// ID 타입이 Long → UUID로 바뀔 때 수정 범위</span>
+<span class="tp">Member</span>.<span class="kw">class</span>          <span class="cm">// Entity: Long id → UUID id</span>
+<span class="tp">MemberRepository</span>     <span class="cm">// Repository: JpaRepository&lt;Member, Long&gt; → &lt;Member, UUID&gt;</span>
+<span class="tp">MemberService</span>        <span class="cm">// Service: findById(Long id) → findById(UUID id)</span>
+<span class="tp">MemberController</span>     <span class="cm">// Controller: @PathVariable Long id → @PathVariable UUID id</span>
+<span class="tp">MemberResponse</span>       <span class="cm">// DTO: Long id → UUID id (직렬화 형식 변경)</span>
+<span class="tp">MemberServiceTest</span>    <span class="cm">// 테스트: 모든 id 픽스처 교체</span></pre>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:16px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">5. 외부 시스템 API Breaking Change</h3>
+    <p class="body-text">REST API URL에 ID가 포함된 경우(<code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">GET /members/42</code>), ID 타입이 바뀌면 URL 형식이 바뀐다(<code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">GET /members/550e8400-e29b-...</code>). 이 API를 사용하는 모든 클라이언트(앱, 프론트엔드, 파트너사)에게 Breaking Change다. 이미 저장된 북마크, 외부 시스템 데이터베이스에 있는 URL 참조도 모두 깨진다.</p>
+  </div>
+
+  <div class="ai" style="margin-top:16px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">6. 운영 환경 무중단 전환의 어려움</h3>
+    <p class="body-text">서비스를 중단하지 않고 ID 전략을 전환하려면 이중 쓰기(dual write), 점진적 마이그레이션, 피처 플래그 등 복잡한 전략이 필요하다. 기존 PK와 새 PK가 공존하는 과도기 동안 양쪽을 모두 지원하는 코드를 유지해야 한다. 실제로 많은 팀이 완전 전환을 포기하고 내부 PK는 정수로 유지하면서 외부 노출용 UUID를 별도 컬럼으로 추가하는 방식을 선택한다.</p>
+  </div>
+
+  <div class="alert warn ai" style="margin-top:16px">
+    <strong>ID 전략은 초기 설계에서 결정하라</strong><br>운영 중 변경은 위의 여섯 가지 리스크를 모두 감수해야 하는 대형 작업이다. 프로젝트 초기에 DB 환경, 분산 여부, 대량 INSERT 빈도, 외부 노출 여부를 종합적으로 검토하여 전략을 확정해야 한다.
+  </div>
+</div>
+</section>
+
+<!-- S9: SUMMARY -->
+<section class="article-section" id="summary">
+<div class="section-content">
+  <h2 class="stitle ai">요약</h2>
+  <p class="ssub ai">프로젝트 환경에 따른 ID 전략 선택 가이드와 핵심 포인트를 정리한다.</p>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">환경별 권장 전략</h3>
+    <table class="cmp-table">
+      <thead>
+        <tr>
+          <th>환경 / 조건</th>
+          <th>권장 전략</th>
+          <th>이유</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700">MySQL + 일반 OLTP</td>
+          <td><strong style="color:var(--red)">IDENTITY</strong></td>
+          <td>MySQL 표준, 설정 단순, 단건 INSERT에 충분</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">MySQL + 대량 INSERT 빈번</td>
+          <td><strong style="color:var(--red)">IDENTITY</strong> + JdbcTemplate</td>
+          <td>JPA Batch 불가를 JdbcTemplate으로 보완</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Oracle / PostgreSQL</td>
+          <td><strong style="color:var(--cyan)">SEQUENCE</strong></td>
+          <td>쓰기 지연 + Batch 가능, allocationSize로 최적화</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">분산 시스템 / MSA</td>
+          <td><strong style="color:var(--green)">ULID / UUID v7</strong></td>
+          <td>DB 독립, 글로벌 유니크, B+Tree 성능 양호</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">DB 무관, 최고 호환성</td>
+          <td><strong style="color:var(--amber)">UUID v4</strong></td>
+          <td>완전한 DB 독립성, 단 인덱스 성능 주의</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">실무 비권장</td>
+          <td><strong style="color:var(--text-dim)">TABLE / AUTO</strong></td>
+          <td>TABLE은 Lock 경합, AUTO는 예측 불가</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ai" style="margin-top:24px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px">핵심 정리</h3>
+    <div class="def-box">
+      <div class="def-row">
+        <span class="def-step">1</span>
+        <div>
+          <strong style="color:var(--red)">IDENTITY는 쓰기 지연 불가 — Hibernate Batch INSERT 포기</strong>
+          <p class="body-text" style="margin-top:4px">INSERT 전에 PK를 알 수 없기 때문에 persist 즉시 INSERT가 나간다. MySQL 환경에서는 어쩔 수 없는 구조적 제약이다. 대량 INSERT는 JdbcTemplate으로 우회한다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step">2</span>
+        <div>
+          <strong style="color:var(--cyan)">SEQUENCE allocationSize — DB INCREMENT BY와 반드시 일치</strong>
+          <p class="body-text" style="margin-top:4px">불일치 시 PK 충돌 또는 누락이 발생한다. DDL 마이그레이션 시 두 설정을 함께 변경해야 한다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step">3</span>
+        <div>
+          <strong style="color:var(--amber)">UUID v4보다 ULID/UUID v7 — 시간순 정렬로 B+Tree 보호</strong>
+          <p class="body-text" style="margin-top:4px">UUID의 장점은 유지하면서 무작위 삽입으로 인한 페이지 분할 문제를 완화한다. 새 프로젝트에서는 UUID v4보다 ULID/UUID v7을 먼저 검토한다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step">4</span>
+        <div>
+          <strong style="color:var(--text)">ID 전략은 초기 설계에서 결정 — 운영 중 변경은 대형 작업</strong>
+          <p class="body-text" style="margin-top:4px">스키마 변경, FK 연쇄, 인덱스 재구성, 코드 전면 수정, API Breaking Change, 무중단 전환 어려움까지 여섯 가지 리스크를 동반한다.</p>
+        </div>
+      </div>
+      <div class="def-row">
+        <span class="def-step">5</span>
+        <div>
+          <strong style="color:var(--text)">AUTO는 명시적으로 교체 — 예측 가능성을 우선</strong>
+          <p class="body-text" style="margin-top:4px">Hibernate 버전과 DB Dialect에 따라 동작이 달라지는 AUTO는 실무에서 항상 명시적 전략으로 교체하는 것이 안전하다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+</BlogLayout>
+
+<style is:global>
+.hl-r { color: var(--red); font-weight: 700; }
+
+/* Strategy list */
+.strategy-list { text-align: left; }
+
+/* Def row (numbered list items) */
+.def-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.def-row:last-child { border-bottom: none; }
+.def-step {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Section spacing */
+.article-section + .article-section {
+  margin-top: 0;
+}
+</style>

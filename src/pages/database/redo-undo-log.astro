@@ -53,22 +53,22 @@ const sections = [
         <tr>
           <td style="font-weight:700;color:var(--amber)">Atomicity</td>
           <td>트랜잭션은 전부 반영되거나 전부 취소된다</td>
-          <td><span class="badge" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">Undo Log</span></td>
+          <td><strong style="color:#c4b5fd">Undo Log</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--cyan)">Consistency</td>
           <td>제약 조건 위반 시 롤백으로 되돌린다</td>
-          <td><span class="badge" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">Undo Log</span></td>
+          <td><strong style="color:#c4b5fd">Undo Log</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--green)">Isolation</td>
           <td>다른 트랜잭션의 미완료 변경을 보지 않는다</td>
-          <td><span class="badge" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">Undo Log (MVCC)</span></td>
+          <td><strong style="color:#c4b5fd">Undo Log (MVCC)</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--red)">Durability</td>
           <td>COMMIT된 데이터는 장애에도 유지된다</td>
-          <td><span class="badge good">Redo Log (WAL)</span></td>
+          <td><strong style="color:var(--green)">Redo Log (WAL)</strong></td>
         </tr>
       </tbody>
     </table>
@@ -215,7 +215,7 @@ const sections = [
         </tr>
         <tr>
           <td style="font-weight:700">쓰기 방식</td>
-          <td><span class="badge good">Sequential (Append-Only)</span></td>
+          <td><strong style="color:var(--green)">Sequential (Append-Only)</strong></td>
           <td>페이지 내 제자리 쓰기</td>
         </tr>
         <tr>
@@ -230,8 +230,8 @@ const sections = [
         </tr>
         <tr>
           <td style="font-weight:700">주 역할</td>
-          <td><span class="badge good">Crash Recovery (재실행)</span></td>
-          <td><span class="badge" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">Rollback + MVCC</span></td>
+          <td><strong style="color:var(--green)">Crash Recovery (재실행)</strong></td>
+          <td><strong style="color:#c4b5fd">Rollback + MVCC</strong></td>
         </tr>
       </tbody>
     </table>
@@ -585,8 +585,8 @@ const sections = [
         </tr>
         <tr>
           <td style="font-weight:700">ACID 역할</td>
-          <td><span class="badge good">Durability</span></td>
-          <td><span class="badge" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">Atomicity + Isolation</span></td>
+          <td><strong style="color:var(--green)">Durability</strong></td>
+          <td><strong style="color:#c4b5fd">Atomicity + Isolation</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">장애 복구</td>
@@ -595,7 +595,7 @@ const sections = [
         </tr>
         <tr>
           <td style="font-weight:700">쓰기 방식</td>
-          <td><span class="badge good">Sequential (Append)</span></td>
+          <td><strong style="color:var(--green)">Sequential (Append)</strong></td>
           <td>페이지 내 제자리 쓰기</td>
         </tr>
         <tr>

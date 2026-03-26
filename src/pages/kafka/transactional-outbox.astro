@@ -395,13 +395,13 @@ const sections = [
         <tr><th>항목</th><th>Polling Publisher</th><th>CDC (Debezium)</th></tr>
       </thead>
       <tbody>
-        <tr><td>지연</td><td>폴링 주기에 비례 (1~5s)</td><td><span class="badge good">수십 ms (거의 실시간)</span></td></tr>
-        <tr><td>인프라 복잡성</td><td><span class="badge good">낮음 (스케줄러 + DB)</span></td><td><span class="badge bad">높음 (Debezium + Kafka Connect + 커넥터 관리)</span></td></tr>
-        <tr><td>DB 부하</td><td><span class="badge mid">주기적 SELECT 쿼리</span></td><td><span class="badge good">트랜잭션 로그 읽기 (쿼리 없음)</span></td></tr>
-        <tr><td>순서 보장</td><td><span class="badge mid">재시도 시 역전 가능</span></td><td><span class="badge good">커밋 로그 순서 그대로 유지</span></td></tr>
-        <tr><td>장애 복구</td><td><span class="badge good">단순 재시작</span></td><td><span class="badge mid">offset/스냅샷 관리 필요</span></td></tr>
-        <tr><td>스케일링</td><td><span class="badge mid">ShedLock으로 단일 실행</span></td><td><span class="badge good">Kafka Connect 분산 모드</span></td></tr>
-        <tr><td>운영 모니터링</td><td><span class="badge good">애플리케이션 로그</span></td><td><span class="badge mid">Kafka Connect REST API</span></td></tr>
+        <tr><td>지연</td><td>폴링 주기에 비례 (1~5s)</td><td><strong style="color:var(--green)">수십 ms (거의 실시간)</strong></td></tr>
+        <tr><td>인프라 복잡성</td><td><strong style="color:var(--green)">낮음 (스케줄러 + DB)</strong></td><td><strong style="color:var(--red)">높음 (Debezium + Kafka Connect + 커넥터 관리)</strong></td></tr>
+        <tr><td>DB 부하</td><td><strong style="color:var(--amber)">주기적 SELECT 쿼리</strong></td><td><strong style="color:var(--green)">트랜잭션 로그 읽기 (쿼리 없음)</strong></td></tr>
+        <tr><td>순서 보장</td><td><strong style="color:var(--amber)">재시도 시 역전 가능</strong></td><td><strong style="color:var(--green)">커밋 로그 순서 그대로 유지</strong></td></tr>
+        <tr><td>장애 복구</td><td><strong style="color:var(--green)">단순 재시작</strong></td><td><strong style="color:var(--amber)">offset/스냅샷 관리 필요</strong></td></tr>
+        <tr><td>스케일링</td><td><strong style="color:var(--amber)">ShedLock으로 단일 실행</strong></td><td><strong style="color:var(--green)">Kafka Connect 분산 모드</strong></td></tr>
+        <tr><td>운영 모니터링</td><td><strong style="color:var(--green)">애플리케이션 로그</strong></td><td><strong style="color:var(--amber)">Kafka Connect REST API</strong></td></tr>
       </tbody>
     </table>
   </div>

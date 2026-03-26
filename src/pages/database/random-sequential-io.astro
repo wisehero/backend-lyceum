@@ -187,8 +187,8 @@ const sections = [
     <table class="cmp-table">
       <thead><tr><th>항목</th><th>Sequential I/O</th><th>Random I/O</th></tr></thead>
       <tbody>
-        <tr><td>HDD 처리량</td><td><span class="badge good">200+ MB/s</span></td><td><span class="badge bad">0.5~2 MB/s</span></td></tr>
-        <tr><td>SSD 처리량</td><td><span class="badge good">500~7000 MB/s</span></td><td><span class="badge mid">50~500 MB/s</span></td></tr>
+        <tr><td>HDD 처리량</td><td><strong style="color:var(--green)">200+ MB/s</strong></td><td><strong style="color:var(--red)">0.5~2 MB/s</strong></td></tr>
+        <tr><td>SSD 처리량</td><td><strong style="color:var(--green)">500~7000 MB/s</strong></td><td><strong style="color:var(--amber)">50~500 MB/s</strong></td></tr>
         <tr><td>Seek 비용</td><td>최초 1회</td><td>매 블록마다 발생</td></tr>
         <tr><td>DB 예시</td><td>Full Table Scan, Redo Log Write</td><td>Index Lookup 후 Table 접근</td></tr>
       </tbody>
@@ -368,37 +368,37 @@ const sections = [
       <tbody>
         <tr>
           <td style="font-weight:700;color:var(--cyan)">Buffer Pool</td>
-          <td><span class="badge good">I/O 제거</span></td>
+          <td><strong style="color:var(--green)">I/O 제거</strong></td>
           <td>자주 접근하는 페이지를 메모리에 캐싱하여 디스크 접근 자체를 줄인다</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--green)">WAL (Redo Log)</td>
-          <td><span class="badge good">Sequential Write</span></td>
+          <td><strong style="color:var(--green)">Sequential Write</strong></td>
           <td>Random Write를 Append-Only Sequential Write로 전환한다</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--amber)">Checkpoint</td>
-          <td><span class="badge mid">Batch Write</span></td>
+          <td><strong style="color:var(--amber)">Batch Write</strong></td>
           <td>변경된 페이지를 모아서 한 번에 디스크에 반영하여 I/O 횟수를 줄인다</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--cyan)">Clustered Index</td>
-          <td><span class="badge good">Sequential Read</span></td>
+          <td><strong style="color:var(--green)">Sequential Read</strong></td>
           <td>PK 순서대로 데이터를 물리적으로 저장하여 범위 조회를 Sequential I/O로 만든다</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--green)">Covering Index</td>
-          <td><span class="badge good">Random I/O 제거</span></td>
+          <td><strong style="color:var(--green)">Random I/O 제거</strong></td>
           <td>인덱스만으로 쿼리 결과를 반환하여 Table Lookup을 없앤다</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--amber)">Index Range Scan</td>
-          <td><span class="badge mid">Sequential + Random</span></td>
+          <td><strong style="color:var(--amber)">Sequential + Random</strong></td>
           <td>리프 노드 순회는 Sequential, Table Lookup은 Random</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:#c4b5fd">Merge Sort</td>
-          <td><span class="badge good">Sequential R/W</span></td>
+          <td><strong style="color:var(--green)">Sequential R/W</strong></td>
           <td>대용량 정렬 시 임시 파일을 순차적으로 읽고 쓴다</td>
         </tr>
       </tbody>
@@ -459,22 +459,22 @@ const sections = [
       <tbody>
         <tr>
           <td style="font-weight:700;color:var(--green)">AUTO_INCREMENT</td>
-          <td><span class="badge good">순차 증가</span></td>
-          <td><span class="badge good">Sequential</span></td>
+          <td><strong style="color:var(--green)">순차 증가</strong></td>
+          <td><strong style="color:var(--green)">Sequential</strong></td>
           <td>페이지 분할 없음, Insert 빠름</td>
           <td>분산 환경에서 충돌 가능</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--red)">UUID (v4)</td>
-          <td><span class="badge bad">완전 랜덤</span></td>
-          <td><span class="badge bad">Random</span></td>
+          <td><strong style="color:var(--red)">완전 랜덤</strong></td>
+          <td><strong style="color:var(--red)">Random</strong></td>
           <td>전역 고유, 분산 환경에 적합</td>
           <td>페이지 분할 빈번, Insert 느림</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--amber)">ULID / UUID v7</td>
-          <td><span class="badge mid">시간순 정렬</span></td>
-          <td><span class="badge good">Sequential</span></td>
+          <td><strong style="color:var(--amber)">시간순 정렬</strong></td>
+          <td><strong style="color:var(--green)">Sequential</strong></td>
           <td>시간 순서 보장 + 전역 고유</td>
           <td>UUID v4 대비 구현 복잡</td>
         </tr>
@@ -548,8 +548,8 @@ const sections = [
         </tr>
         <tr>
           <td style="font-weight:700">HDD 병목</td>
-          <td><span class="badge bad">Seek + Rotation 매번 발생</span></td>
-          <td><span class="badge good">최초 1회 Seek만 필요</span></td>
+          <td><strong style="color:var(--red)">Seek + Rotation 매번 발생</strong></td>
+          <td><strong style="color:var(--green)">최초 1회 Seek만 필요</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">SSD 차이</td>

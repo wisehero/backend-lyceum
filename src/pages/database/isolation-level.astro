@@ -129,19 +129,19 @@ const sections = [
           <td style="font-weight:700;color:var(--red)">Dirty Read</td>
           <td>UNCOMMITTED 값을 읽음</td>
           <td>다른 TX가 COMMIT 전에 읽음</td>
-          <td><span class="badge bad">높음</span></td>
+          <td><strong style="color:var(--red)">높음</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--amber)">Non-Repeatable Read</td>
           <td>같은 Row를 다시 읽었더니 값이 다름</td>
           <td>다른 TX가 UPDATE + COMMIT</td>
-          <td><span class="badge mid">중간</span></td>
+          <td><strong style="color:var(--amber)">중간</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--cyan)">Phantom Read</td>
           <td>같은 조건인데 행 수가 다름</td>
           <td>다른 TX가 INSERT/DELETE + COMMIT</td>
-          <td><span class="badge" style="color:var(--cyan);background:var(--cyan-pale);border:1px solid var(--cyan-dim)">낮음</span></td>
+          <td><strong style="color:var(--cyan)">낮음</strong></td>
         </tr>
       </tbody>
     </table>
@@ -189,30 +189,30 @@ const sections = [
       <tbody>
         <tr>
           <td style="font-weight:700;color:var(--red)">READ UNCOMMITTED</td>
-          <td><span class="badge bad">발생</span></td>
-          <td><span class="badge bad">발생</span></td>
-          <td><span class="badge bad">발생</span></td>
+          <td><strong style="color:var(--red)">발생</strong></td>
+          <td><strong style="color:var(--red)">발생</strong></td>
+          <td><strong style="color:var(--red)">발생</strong></td>
           <td>매우 높음</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--amber)">READ COMMITTED</td>
-          <td><span class="badge good">방지</span></td>
-          <td><span class="badge bad">발생</span></td>
-          <td><span class="badge bad">발생</span></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
+          <td><strong style="color:var(--red)">발생</strong></td>
+          <td><strong style="color:var(--red)">발생</strong></td>
           <td>높음</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--cyan)">REPEATABLE READ</td>
-          <td><span class="badge good">방지</span></td>
-          <td><span class="badge good">방지</span></td>
-          <td><span class="badge mid">발생 (InnoDB: 대부분 방지)</span></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
+          <td><strong style="color:var(--amber)">발생 (InnoDB: 대부분 방지)</strong></td>
           <td>보통</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--green)">SERIALIZABLE</td>
-          <td><span class="badge good">방지</span></td>
-          <td><span class="badge good">방지</span></td>
-          <td><span class="badge good">방지</span></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
           <td>낮음</td>
         </tr>
       </tbody>
@@ -271,8 +271,8 @@ const sections = [
         </tr>
         <tr>
           <td style="font-weight:700">같은 TX 안에서 같은 쿼리</td>
-          <td><span class="badge mid">결과가 다를 수 있음</span></td>
-          <td><span class="badge good">항상 같은 결과</span></td>
+          <td><strong style="color:var(--amber)">결과가 다를 수 있음</strong></td>
+          <td><strong style="color:var(--green)">항상 같은 결과</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">Undo Log 참조</td>
@@ -469,21 +469,21 @@ const sections = [
         <tr>
           <td style="font-weight:700;color:var(--red)">Pessimistic Lock</td>
           <td>SELECT 시점에 Row Lock 획득</td>
-          <td><span class="badge good">확실한 순서 보장</span></td>
-          <td><span class="badge bad">Lock 대기 성능 저하</span></td>
+          <td><strong style="color:var(--green)">확실한 순서 보장</strong></td>
+          <td><strong style="color:var(--red)">Lock 대기 성능 저하</strong></td>
           <td>충돌이 자주 발생</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--green)">Optimistic Lock</td>
           <td>COMMIT 시점에 Version 비교</td>
-          <td><span class="badge good">Lock 없이 높은 동시성</span></td>
-          <td><span class="badge mid">재시도 로직 필요</span></td>
+          <td><strong style="color:var(--green)">Lock 없이 높은 동시성</strong></td>
+          <td><strong style="color:var(--amber)">재시도 로직 필요</strong></td>
           <td>충돌이 드묾</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--cyan)">원자적 UPDATE</td>
           <td>DB에서 조건부 차감</td>
-          <td><span class="badge good">가장 효율적</span></td>
+          <td><strong style="color:var(--green)">가장 효율적</strong></td>
           <td>복잡한 로직 어려움</td>
           <td>단순 차감 연산</td>
         </tr>
@@ -542,17 +542,17 @@ const sections = [
         <tr>
           <td style="font-weight:700">재고 차감 시 동시 요청</td>
           <td>SERIALIZABLE</td>
-          <td><span class="badge good">비관적 Lock (SELECT FOR UPDATE)</span></td>
+          <td><strong style="color:var(--green)">비관적 Lock (SELECT FOR UPDATE)</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">포인트 잔액 조회 후 차감</td>
           <td>SERIALIZABLE</td>
-          <td><span class="badge good">낙관적 Lock (Version 컬럼)</span></td>
+          <td><strong style="color:var(--green)">낙관적 Lock (Version 컬럼)</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">집계 보고서 일관성</td>
           <td>REPEATABLE READ</td>
-          <td><span class="badge good">@Transactional(readOnly=true)</span></td>
+          <td><strong style="color:var(--green)">@Transactional(readOnly=true)</strong></td>
         </tr>
       </tbody>
     </table>
@@ -565,26 +565,26 @@ const sections = [
       <tbody>
         <tr>
           <td style="font-weight:700;color:var(--cyan)">MySQL (InnoDB)</td>
-          <td><span class="badge" style="color:var(--cyan);background:var(--cyan-pale);border:1px solid var(--cyan-dim)">REPEATABLE READ</span></td>
-          <td><span class="badge good">지원</span></td>
+          <td><strong style="color:var(--cyan)">REPEATABLE READ</strong></td>
+          <td><strong style="color:var(--green)">지원</strong></td>
           <td>Next-Key Lock으로 Phantom Read 대부분 방지</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--amber)">Oracle</td>
-          <td><span class="badge mid">READ COMMITTED</span></td>
-          <td><span class="badge good">지원</span></td>
+          <td><strong style="color:var(--amber)">READ COMMITTED</strong></td>
+          <td><strong style="color:var(--green)">지원</strong></td>
           <td>REPEATABLE READ 미지원. RC / SERIALIZABLE / READ ONLY만 제공</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--green)">PostgreSQL</td>
-          <td><span class="badge mid">READ COMMITTED</span></td>
-          <td><span class="badge good">지원</span></td>
+          <td><strong style="color:var(--amber)">READ COMMITTED</strong></td>
+          <td><strong style="color:var(--green)">지원</strong></td>
           <td>RR에서 write-write 충돌 감지 시 오류 반환</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:#c4b5fd">SQL Server</td>
-          <td><span class="badge mid">READ COMMITTED</span></td>
-          <td><span class="badge mid">선택적</span></td>
+          <td><strong style="color:var(--amber)">READ COMMITTED</strong></td>
+          <td><strong style="color:var(--amber)">선택적</strong></td>
           <td>Snapshot Isolation이라는 별도 수준 제공</td>
         </tr>
       </tbody>
@@ -635,24 +635,24 @@ const sections = [
         </tr>
         <tr>
           <td style="font-weight:700">Dirty Read</td>
-          <td><span class="badge bad">발생</span></td>
-          <td><span class="badge good">방지</span></td>
-          <td><span class="badge good">방지</span></td>
-          <td><span class="badge good">방지</span></td>
+          <td><strong style="color:var(--red)">발생</strong></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">Non-Repeatable</td>
-          <td><span class="badge bad">발생</span></td>
-          <td><span class="badge bad">발생</span></td>
-          <td><span class="badge good">방지</span></td>
-          <td><span class="badge good">방지</span></td>
+          <td><strong style="color:var(--red)">발생</strong></td>
+          <td><strong style="color:var(--red)">발생</strong></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">Phantom Read</td>
-          <td><span class="badge bad">발생</span></td>
-          <td><span class="badge bad">발생</span></td>
-          <td><span class="badge mid">InnoDB: 대부분 방지</span></td>
-          <td><span class="badge good">방지</span></td>
+          <td><strong style="color:var(--red)">발생</strong></td>
+          <td><strong style="color:var(--red)">발생</strong></td>
+          <td><strong style="color:var(--amber)">InnoDB: 대부분 방지</strong></td>
+          <td><strong style="color:var(--green)">방지</strong></td>
         </tr>
         <tr>
           <td style="font-weight:700">동시성</td>
