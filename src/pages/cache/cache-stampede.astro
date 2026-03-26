@@ -74,28 +74,31 @@ const sections = [
   <h2 class="stitle ai">전략 1: <span class="hl-g">Mutex Lock</span></h2>
   <p class="ssub ai">오직 하나의 스레드만 DB 조회 권한을 획득하고, 나머지는 짧은 시간 대기 후 갱신된 캐시를 읽는다.</p>
 
-  <div class="mx-seq ai" id="mxSeq">
-    <div class="mx-heads">
-      <div class="mx-head" style="color:var(--text)">요청 N개</div>
-      <div class="mx-head" style="color:var(--cyan)">서버</div>
-      <div class="mx-head" style="color:var(--red)">Redis</div>
-      <div class="mx-head" style="color:#c4b5fd">DB</div>
+  <div class="mx-arch ai" id="mxArch">
+    <div class="mx-nodes">
+      <div class="mx-node" id="mxN0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        요청 N개
+      </div>
+      <div class="mx-edge" id="mxE01"><div class="mx-dot" id="mxD01"></div><span class="mx-elbl" id="mxL01"></span></div>
+      <div class="mx-node srv" id="mxN1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        서버
+      </div>
+      <div class="mx-edge" id="mxE12"><div class="mx-dot" id="mxD12"></div><span class="mx-elbl" id="mxL12"></span></div>
+      <div class="mx-node redis" id="mxN2">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Redis
+      </div>
     </div>
-    <div class="mx-lines">
-      <div class="mx-lifeline"></div>
-      <div class="mx-lifeline"></div>
-      <div class="mx-lifeline"></div>
-      <div class="mx-lifeline"></div>
+    <div class="mx-db-row">
+      <div class="mx-edge-v" id="mxE13"><div class="mx-dot-v" id="mxD13"></div><span class="mx-elbl-v" id="mxL13"></span></div>
     </div>
-    <div class="mx-msgs" id="mxMsgs">
-      <div class="mx-msg" id="mxM0" data-from="0" data-to="1"><span class="mx-label">GET key</span></div>
-      <div class="mx-msg" id="mxM1" data-from="1" data-to="2"><span class="mx-label">GET cache → <strong style="color:var(--red)">MISS</strong></span></div>
-      <div class="mx-msg" id="mxM2" data-from="1" data-to="2"><span class="mx-label">SETNX lock</span></div>
-      <div class="mx-msg" id="mxM3" data-from="2" data-to="1"><span class="mx-label" style="color:var(--green)">1개 획득 / 나머지 대기</span></div>
-      <div class="mx-msg" id="mxM4" data-from="1" data-to="3"><span class="mx-label">SELECT * FROM deals</span></div>
-      <div class="mx-msg" id="mxM5" data-from="3" data-to="1"><span class="mx-label" style="color:#c4b5fd">결과 반환</span></div>
-      <div class="mx-msg" id="mxM6" data-from="1" data-to="2"><span class="mx-label" style="color:var(--green)">SET cache + DEL lock</span></div>
-      <div class="mx-msg" id="mxM7" data-from="1" data-to="0"><span class="mx-label" style="color:var(--green)">대기 요청 캐시 HIT → 응답</span></div>
+    <div class="mx-db-row">
+      <div class="mx-node db" id="mxN3">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        DB
+      </div>
     </div>
     <div class="mx-status" id="mxStatus"></div>
     <div class="sv-ctrl" style="margin-top:14px">
@@ -425,24 +428,40 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .d-opt.maybe{border-color:var(--amber-dim)}.d-opt.maybe h4{color:var(--amber)}
 .d-arr{color:var(--text-dim);font-size:18px}
 
-/* ── MUTEX SEQUENCE DIAGRAM ── */
-.mx-seq{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px;overflow-x:auto;position:relative}
-.mx-heads{display:flex;justify-content:space-around;min-width:500px;margin-bottom:12px}
-.mx-head{font-size:13px;font-weight:700;text-align:center;width:25%;padding:10px 4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
-.mx-lines{display:flex;justify-content:space-around;min-width:500px;height:0;position:relative}
-.mx-lifeline{width:2px;background:var(--border);position:absolute;top:0;height:100%}
-.mx-msgs{display:flex;flex-direction:column;gap:0;min-width:500px;position:relative;min-height:40px}
-.mx-msg{position:relative;height:44px;opacity:0;transition:opacity .4s}
-.mx-msg.vis{opacity:1}
-.mx-msg .mx-label{position:absolute;font-size:12px;font-weight:600;color:var(--text-sec);white-space:nowrap;padding:2px 8px;background:var(--bg-card);border-radius:4px;top:4px;z-index:1}
-.mx-msg::after{content:'';position:absolute;top:22px;height:2px;border-radius:1px;transition:width .5s ease}
-.mx-msg.vis::after{background:var(--cyan)}
-.mx-msg.vis.red::after{background:var(--red)}
-.mx-msg.vis.green::after{background:var(--green)}
-.mx-msg.vis.purple::after{background:#c4b5fd}
-.mx-msg::before{content:'';position:absolute;top:18px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;opacity:0;transition:opacity .3s}
-.mx-msg.vis::before{opacity:1}
-.mx-status{font-size:14px;color:var(--text-sec);text-align:center;min-height:24px;margin-top:10px;font-weight:600}
+/* ── MUTEX ARCHITECTURE ── */
+.mx-arch{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px 24px;overflow-x:auto}
+.mx-nodes{display:flex;align-items:center;justify-content:center;gap:0;min-width:480px}
+.mx-node{min-width:90px;padding:14px 12px;border-radius:var(--r-lg);display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:700;text-align:center;border:2px solid var(--border);background:var(--surface);transition:border-color .4s,box-shadow .4s;flex-shrink:0;position:relative}
+.mx-node svg{width:26px;height:26px}
+.mx-node.srv{color:var(--cyan);border-color:var(--cyan-dim)}
+.mx-node.redis{color:var(--red);border-color:var(--red-dim)}
+.mx-node.db{color:#c4b5fd;border-color:rgba(124,58,237,.3)}
+.mx-node.glow{box-shadow:0 0 20px var(--cyan-dim);border-color:var(--cyan)}
+.mx-node.glow-red{box-shadow:0 0 20px var(--red-dim);border-color:var(--red)}
+.mx-node.glow-green{box-shadow:0 0 20px var(--green-dim);border-color:var(--green)}
+.mx-node.glow-purple{box-shadow:0 0 20px rgba(124,58,237,.3);border-color:#c4b5fd}
+/* 가로 엣지 */
+.mx-edge{width:80px;height:4px;background:var(--border);border-radius:2px;position:relative;flex-shrink:0;transition:background .4s}
+.mx-edge.lit{background:var(--cyan)}.mx-edge.lit-red{background:var(--red)}.mx-edge.lit-green{background:var(--green)}.mx-edge.lit-purple{background:#c4b5fd}
+.mx-dot{width:10px;height:10px;border-radius:50%;background:var(--cyan);position:absolute;top:-3px;left:0;opacity:0;transition:opacity .2s}
+.mx-dot.run{opacity:1;animation:mxSlide .6s ease forwards}
+.mx-dot.rev{opacity:1;animation:mxSlideRev .6s ease forwards}
+@keyframes mxSlide{0%{left:0}100%{left:calc(100% - 10px)}}
+@keyframes mxSlideRev{0%{left:calc(100% - 10px)}100%{left:0}}
+.mx-elbl{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;color:var(--text-dim);white-space:nowrap;opacity:0;transition:opacity .3s}
+.mx-elbl.vis{opacity:1}
+/* 세로 엣지 (서버→DB) */
+.mx-db-row{display:flex;justify-content:center;min-width:480px}
+.mx-edge-v{width:4px;height:40px;background:var(--border);border-radius:2px;position:relative;transition:background .4s}
+.mx-edge-v.lit{background:#c4b5fd}
+.mx-dot-v{width:10px;height:10px;border-radius:50%;background:#c4b5fd;position:absolute;left:-3px;top:0;opacity:0}
+.mx-dot-v.run{opacity:1;animation:mxSlideDown .6s ease forwards}
+.mx-dot-v.rev{opacity:1;animation:mxSlideUp .6s ease forwards}
+@keyframes mxSlideDown{0%{top:0}100%{top:calc(100% - 10px)}}
+@keyframes mxSlideUp{0%{top:calc(100% - 10px)}100%{top:0}}
+.mx-elbl-v{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;color:var(--text-dim);white-space:nowrap;opacity:0;transition:opacity .3s}
+.mx-elbl-v.vis{opacity:1}
+.mx-status{font-size:14px;color:var(--text-sec);text-align:center;min-height:24px;margin-top:14px;font-weight:600}
 
 /* ── RESPONSIVE (file-specific) ── */
 @media(max-width:768px){.sv-arena{flex-direction:column;gap:12px}.sv-arrows{min-width:auto;flex-direction:row;min-height:60px;padding:8px 0}.sv-arr-row{width:36px;height:auto;flex-direction:column}.d-opts{flex-direction:column}}
@@ -513,101 +532,111 @@ function svHit(){
   },300));
 }
 
-// ── MUTEX SEQUENCE ──
-let mxTimers=[], mxRunning=false;
-function mxReset(){
-  mxTimers.forEach(t=>clearTimeout(t));mxTimers=[];mxRunning=false;
-  for(let i=0;i<8;i++){const m=$('mxM'+i);if(m){m.classList.remove('vis','red','green','purple');m.style.cssText=''}}
-  $('mxStatus').textContent='';
-  // position lifelines
-  mxLayout();
-}
-function mxLayout(){
-  const seq=$('mxSeq'),heads=seq.querySelectorAll('.mx-head');
-  const lines=seq.querySelectorAll('.mx-lifeline');
-  const msgs=$('mxMsgs');
-  if(!heads.length)return;
-  const seqRect=seq.getBoundingClientRect();
-  heads.forEach((h,i)=>{
-    const r=h.getBoundingClientRect();
-    const cx=r.left+r.width/2-seqRect.left;
-    lines[i].style.left=cx+'px';
+// ── MUTEX ARCHITECTURE ──
+let mxTimers=[],mxRunning=false;
+function mxClear(){
+  ['mxN0','mxN1','mxN2','mxN3'].forEach(id=>{
+    const n=$(id);if(n)n.classList.remove('glow','glow-red','glow-green','glow-purple');
   });
-  const msgsRect=msgs.getBoundingClientRect();
-  const linesC=seq.querySelector('.mx-lines');
-  linesC.style.height=msgsRect.height+'px';
-  linesC.style.top=msgsRect.offsetTop+'px';
-  // position each message arrow
-  for(let i=0;i<8;i++){
-    const m=$('mxM'+i);if(!m)continue;
-    const from=+m.dataset.from, to=+m.dataset.to;
-    const fromX=parseFloat(lines[from].style.left);
-    const toX=parseFloat(lines[to].style.left);
-    const left=Math.min(fromX,toX);
-    const width=Math.abs(toX-fromX);
-    m.style.setProperty('--left',left+'px');
-    m.style.setProperty('--width',width+'px');
-    // position label
-    const lbl=m.querySelector('.mx-label');
-    lbl.style.left=(left+width/2)+'px';
-    lbl.style.transform='translateX(-50%)';
-    // arrow line
-    m.style.cssText+=`;`;
-    // use ::after for line via CSS custom props
-  }
+  ['mxE01','mxE12'].forEach(id=>{
+    const e=$(id);if(e)e.classList.remove('lit','lit-red','lit-green','lit-purple');
+  });
+  const ev=$('mxE13');if(ev)ev.classList.remove('lit');
+  ['mxD01','mxD12'].forEach(id=>{const d=$(id);if(d){d.classList.remove('run','rev');d.style.background=''}});
+  const dv=$('mxD13');if(dv)dv.classList.remove('run','rev');
+  ['mxL01','mxL12','mxL13'].forEach(id=>{const l=$(id);if(l){l.classList.remove('vis');l.textContent=''}});
+  $('mxStatus').textContent='';
 }
+function mxReset(){mxTimers.forEach(t=>clearTimeout(t));mxTimers=[];mxRunning=false;mxClear()}
+function mxStep(delay,fn){mxTimers.push(setTimeout(fn,delay))}
 function mxPlay(){
   if(mxRunning)return;mxReset();mxRunning=true;
-  const seq=$('mxSeq'),lines=seq.querySelectorAll('.mx-lifeline');
-  const colors=['','red','','green','','purple','green','green'];
-  const statuses=[
-    '요청이 서버에 도착',
-    '캐시 조회 → MISS',
-    'SETNX로 락 시도',
-    '1개만 획득, 나머지 대기',
-    '락 획득자가 DB 조회',
-    'DB가 결과 반환',
-    '캐시에 저장 + 락 해제',
-    '대기 요청들 캐시 HIT!'
-  ];
-  for(let i=0;i<8;i++){
-    mxTimers.push(setTimeout(()=>{
-      const m=$('mxM'+i);if(!m)return;
-      const from=+m.dataset.from,to=+m.dataset.to;
-      const fromX=parseFloat(lines[from].style.left);
-      const toX=parseFloat(lines[to].style.left);
-      const left=Math.min(fromX,toX);
-      const width=Math.abs(toX-fromX);
-      m.querySelector('.mx-label').style.left=(left+width/2)+'px';
-      m.querySelector('.mx-label').style.transform='translateX(-50%)';
-      m.style.setProperty('--ml',left+'px');m.style.setProperty('--mw',width+'px');
-      // arrow tip direction
-      const dir=to>from?'right':'left';
-      m.style.setProperty('--dir',dir);
-      if(colors[i])m.classList.add(colors[i]);
-      m.classList.add('vis');
-      $('mxStatus').innerHTML=statuses[i];
-      if(i===7)mxRunning=false;
-    },i*900));
-  }
+  let t=0;
+  // 1) 요청→서버
+  mxStep(t+=0,()=>{
+    $('mxN0').classList.add('glow');
+    $('mxE01').classList.add('lit');$('mxD01').classList.add('run');
+    $('mxL01').textContent='GET key';$('mxL01').classList.add('vis');
+    $('mxStatus').innerHTML='요청 N개가 서버에 도착';
+  });
+  // 2) 서버→Redis (MISS)
+  mxStep(t+=1000,()=>{
+    mxClearPrev();$('mxN1').classList.add('glow');
+    $('mxE12').classList.add('lit');$('mxD12').classList.add('run');
+    $('mxL12').textContent='GET cache';$('mxL12').classList.add('vis');
+    $('mxStatus').innerHTML='서버가 Redis에 캐시 조회';
+  });
+  // 3) Redis→서버 (MISS 응답)
+  mxStep(t+=1000,()=>{
+    mxClearPrev();$('mxN2').classList.add('glow-red');
+    $('mxE12').classList.add('lit-red');
+    $('mxD12').classList.remove('run');void $('mxD12').offsetWidth;
+    $('mxD12').style.background='var(--red)';$('mxD12').classList.add('rev');
+    $('mxL12').textContent='MISS!';$('mxL12').style.color='var(--red)';$('mxL12').classList.add('vis');
+    $('mxStatus').innerHTML='<strong style="color:var(--red)">캐시 MISS</strong> — 데이터 없음';
+  });
+  // 4) 서버→Redis (SETNX)
+  mxStep(t+=1000,()=>{
+    mxClearPrev();$('mxN1').classList.add('glow');
+    $('mxE12').classList.add('lit');
+    $('mxD12').classList.remove('rev');$('mxD12').style.background='';void $('mxD12').offsetWidth;
+    $('mxD12').classList.add('run');
+    $('mxL12').textContent='SETNX lock';$('mxL12').style.color='';$('mxL12').classList.add('vis');
+    $('mxStatus').innerHTML='모든 요청이 동시에 SETNX 락 시도';
+  });
+  // 5) Redis→서버 (1개 성공)
+  mxStep(t+=1000,()=>{
+    mxClearPrev();$('mxN2').classList.add('glow-green');
+    $('mxE12').classList.add('lit-green');
+    $('mxD12').classList.remove('run');void $('mxD12').offsetWidth;
+    $('mxD12').style.background='var(--green)';$('mxD12').classList.add('rev');
+    $('mxL12').textContent='1개 성공!';$('mxL12').style.color='var(--green)';$('mxL12').classList.add('vis');
+    $('mxN0').classList.add('glow');
+    $('mxStatus').innerHTML='<strong style="color:var(--green)">1개만 락 획득</strong>, 나머지 N-1개는 대기';
+  });
+  // 6) 서버→DB
+  mxStep(t+=1200,()=>{
+    mxClearPrev();$('mxN1').classList.add('glow');
+    $('mxE13').classList.add('lit');$('mxD13').classList.add('run');
+    $('mxL13').textContent='SELECT *';$('mxL13').classList.add('vis');
+    $('mxStatus').innerHTML='락 획득자가 DB에 쿼리';
+  });
+  // 7) DB→서버
+  mxStep(t+=1200,()=>{
+    mxClearPrev();$('mxN3').classList.add('glow-purple');
+    $('mxE13').classList.add('lit');
+    $('mxD13').classList.remove('run');void $('mxD13').offsetWidth;$('mxD13').classList.add('rev');
+    $('mxL13').textContent='결과 반환';$('mxL13').classList.add('vis');
+    $('mxStatus').innerHTML='DB가 결과를 서버로 반환';
+  });
+  // 8) 서버→Redis (SET + DEL)
+  mxStep(t+=1000,()=>{
+    mxClearPrev();$('mxN1').classList.add('glow-green');
+    $('mxE12').classList.add('lit-green');
+    $('mxD12').classList.remove('rev');$('mxD12').style.background='var(--green)';void $('mxD12').offsetWidth;
+    $('mxD12').classList.add('run');
+    $('mxL12').textContent='SET cache + DEL lock';$('mxL12').style.color='var(--green)';$('mxL12').classList.add('vis');
+    $('mxStatus').innerHTML='캐시에 저장하고 락 해제';
+  });
+  // 9) 서버→요청 (HIT 응답)
+  mxStep(t+=1000,()=>{
+    mxClearPrev();
+    $('mxN0').classList.add('glow-green');$('mxN1').classList.add('glow-green');$('mxN2').classList.add('glow-green');
+    $('mxE01').classList.add('lit-green');
+    $('mxD01').style.background='var(--green)';$('mxD01').classList.add('rev');
+    $('mxL01').textContent='캐시 HIT → 응답';$('mxL01').style.color='var(--green)';$('mxL01').classList.add('vis');
+    $('mxStatus').innerHTML='<strong style="color:var(--green)">대기 요청들이 갱신된 캐시에서 HIT!</strong>';
+    mxRunning=false;
+  });
 }
-// style arrows dynamically
-(function(){
-  const s=document.createElement('style');
-  s.textContent=`
-    .mx-msg.vis::after{left:var(--ml);width:var(--mw)}
-    .mx-msg.vis[style*="--dir:right"]::before{left:calc(var(--ml) + var(--mw) - 5px);border-left:8px solid var(--cyan)}
-    .mx-msg.vis[style*="--dir:left"]::before{left:var(--ml);border-right:8px solid var(--cyan)}
-    .mx-msg.vis.red[style*="--dir:right"]::before{border-left-color:var(--red)}
-    .mx-msg.vis.red[style*="--dir:left"]::before{border-right-color:var(--red)}
-    .mx-msg.vis.green[style*="--dir:right"]::before{border-left-color:var(--green)}
-    .mx-msg.vis.green[style*="--dir:left"]::before{border-right-color:var(--green)}
-    .mx-msg.vis.purple[style*="--dir:right"]::before{border-left-color:#c4b5fd}
-    .mx-msg.vis.purple[style*="--dir:left"]::before{border-right-color:#c4b5fd}
-  `;document.head.appendChild(s);
-  setTimeout(()=>{if($('mxSeq'))mxLayout()},100);
-  window.addEventListener('resize',()=>{if($('mxSeq'))mxLayout()});
-})();
+function mxClearPrev(){
+  ['mxN0','mxN1','mxN2','mxN3'].forEach(id=>{$(id).classList.remove('glow','glow-red','glow-green','glow-purple')});
+  ['mxE01','mxE12'].forEach(id=>{$(id).classList.remove('lit','lit-red','lit-green','lit-purple')});
+  $('mxE13').classList.remove('lit');
+  ['mxD01','mxD12'].forEach(id=>{const d=$(id);d.classList.remove('run','rev');d.style.background=''});
+  $('mxD13').classList.remove('run','rev');
+  ['mxL01','mxL12','mxL13'].forEach(id=>{const l=$(id);l.classList.remove('vis');l.textContent='';l.style.color=''});
+}
 
 // ── PROACTIVE TIMELINE ──
 let tlAnim=null,tlStep=0;
