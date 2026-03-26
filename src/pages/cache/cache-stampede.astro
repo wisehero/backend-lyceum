@@ -75,29 +75,34 @@ const sections = [
   <p class="ssub ai">오직 하나의 스레드만 DB 조회 권한을 획득하고, 나머지는 짧은 시간 대기 후 갱신된 캐시를 읽는다.</p>
 
   <div class="mx-arch ai" id="mxArch">
-    <div class="mx-nodes">
-      <div class="mx-node" id="mxN0">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        요청 N개
+    <div class="mx-layout">
+      <!-- 왼쪽: 요청들 -->
+      <div class="mx-reqs" id="mxReqs">
+        <div class="mx-req" id="mxR0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>요청 1</div>
+        <div class="mx-req" id="mxR1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>요청 2</div>
+        <div class="mx-req" id="mxR2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>요청 3</div>
+        <div class="mx-req" id="mxR3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>요청 N</div>
       </div>
+      <!-- 요청→서버 엣지 -->
       <div class="mx-edge" id="mxE01"><div class="mx-dot" id="mxD01"></div><span class="mx-elbl" id="mxL01"></span></div>
-      <div class="mx-node srv" id="mxN1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-        서버
+      <!-- 가운데: 서버 -->
+      <div class="mx-center">
+        <div class="mx-node srv" id="mxN1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          서버
+        </div>
+        <div class="mx-edge-v" id="mxE13"><div class="mx-dot-v" id="mxD13"></div><span class="mx-elbl-v" id="mxL13"></span></div>
+        <div class="mx-node db" id="mxN3">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          DB
+        </div>
       </div>
+      <!-- 서버→캐시 엣지 -->
       <div class="mx-edge" id="mxE12"><div class="mx-dot" id="mxD12"></div><span class="mx-elbl" id="mxL12"></span></div>
+      <!-- 오른쪽: 캐시 -->
       <div class="mx-node redis" id="mxN2">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-        Redis
-      </div>
-    </div>
-    <div class="mx-db-row">
-      <div class="mx-edge-v" id="mxE13"><div class="mx-dot-v" id="mxD13"></div><span class="mx-elbl-v" id="mxL13"></span></div>
-    </div>
-    <div class="mx-db-row">
-      <div class="mx-node db" id="mxN3">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-        DB
+        캐시 (Redis)
       </div>
     </div>
     <div class="mx-status" id="mxStatus"></div>
@@ -429,8 +434,16 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .d-arr{color:var(--text-dim);font-size:18px}
 
 /* ── MUTEX ARCHITECTURE ── */
-.mx-arch{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px 24px;overflow-x:auto}
-.mx-nodes{display:flex;align-items:center;justify-content:center;gap:0;min-width:480px}
+.mx-arch{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px 20px;overflow-x:auto}
+.mx-layout{display:flex;align-items:center;justify-content:center;gap:0;min-width:560px}
+.mx-reqs{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.mx-req{padding:7px 12px;border-radius:var(--r-md);display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;border:2px solid var(--border);background:var(--surface);transition:all .4s;color:var(--text);white-space:nowrap}
+.mx-req svg{width:16px;height:16px;flex-shrink:0}
+.mx-req.active{border-color:var(--cyan);box-shadow:0 0 12px var(--cyan-dim);color:var(--cyan)}
+.mx-req.winner{border-color:var(--green);box-shadow:0 0 16px var(--green-dim);color:var(--green)}
+.mx-req.waiting{opacity:.4;border-style:dashed;border-color:var(--amber)}
+.mx-req.done{border-color:var(--green);color:var(--green);opacity:1}
+.mx-center{display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0}
 .mx-node{min-width:90px;padding:14px 12px;border-radius:var(--r-lg);display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:700;text-align:center;border:2px solid var(--border);background:var(--surface);transition:border-color .4s,box-shadow .4s;flex-shrink:0;position:relative}
 .mx-node svg{width:26px;height:26px}
 .mx-node.srv{color:var(--cyan);border-color:var(--cyan-dim)}
@@ -535,103 +548,101 @@ function svHit(){
 // ── MUTEX ARCHITECTURE ──
 let mxTimers=[],mxRunning=false;
 function mxClear(){
-  ['mxN0','mxN1','mxN2','mxN3'].forEach(id=>{
-    const n=$(id);if(n)n.classList.remove('glow','glow-red','glow-green','glow-purple');
-  });
-  ['mxE01','mxE12'].forEach(id=>{
-    const e=$(id);if(e)e.classList.remove('lit','lit-red','lit-green','lit-purple');
-  });
+  ['mxN1','mxN2','mxN3'].forEach(id=>{const n=$(id);if(n)n.classList.remove('glow','glow-red','glow-green','glow-purple')});
+  for(let i=0;i<4;i++){const r=$('mxR'+i);if(r)r.classList.remove('active','winner','waiting','done')}
+  ['mxE01','mxE12'].forEach(id=>{const e=$(id);if(e)e.classList.remove('lit','lit-red','lit-green','lit-purple')});
   const ev=$('mxE13');if(ev)ev.classList.remove('lit');
   ['mxD01','mxD12'].forEach(id=>{const d=$(id);if(d){d.classList.remove('run','rev');d.style.background=''}});
   const dv=$('mxD13');if(dv)dv.classList.remove('run','rev');
-  ['mxL01','mxL12','mxL13'].forEach(id=>{const l=$(id);if(l){l.classList.remove('vis');l.textContent=''}});
+  ['mxL01','mxL12','mxL13'].forEach(id=>{const l=$(id);if(l){l.classList.remove('vis');l.textContent='';l.style.color=''}});
   $('mxStatus').textContent='';
 }
 function mxReset(){mxTimers.forEach(t=>clearTimeout(t));mxTimers=[];mxRunning=false;mxClear()}
-function mxStep(delay,fn){mxTimers.push(setTimeout(fn,delay))}
+function mxS(delay,fn){mxTimers.push(setTimeout(fn,delay))}
 function mxPlay(){
   if(mxRunning)return;mxReset();mxRunning=true;
   let t=0;
-  // 1) 요청→서버
-  mxStep(t+=0,()=>{
-    $('mxN0').classList.add('glow');
+  // 1) 요청들 활성화 → 서버로 이동
+  mxS(t+=0,()=>{
+    for(let i=0;i<4;i++)$('mxR'+i).classList.add('active');
     $('mxE01').classList.add('lit');$('mxD01').classList.add('run');
-    $('mxL01').textContent='GET key';$('mxL01').classList.add('vis');
-    $('mxStatus').innerHTML='요청 N개가 서버에 도착';
+    $('mxL01').textContent='조회 요청';$('mxL01').classList.add('vis');
+    $('mxStatus').innerHTML='요청 N개가 동시에 서버에 도착';
   });
-  // 2) 서버→Redis (MISS)
-  mxStep(t+=1000,()=>{
-    mxClearPrev();$('mxN1').classList.add('glow');
+  // 2) 서버→캐시 조회
+  mxS(t+=1000,()=>{
+    mxClearEdges();$('mxN1').classList.add('glow');
     $('mxE12').classList.add('lit');$('mxD12').classList.add('run');
-    $('mxL12').textContent='GET cache';$('mxL12').classList.add('vis');
-    $('mxStatus').innerHTML='서버가 Redis에 캐시 조회';
+    $('mxL12').textContent='캐시 조회';$('mxL12').classList.add('vis');
+    $('mxStatus').innerHTML='서버가 캐시에 데이터 조회';
   });
-  // 3) Redis→서버 (MISS 응답)
-  mxStep(t+=1000,()=>{
-    mxClearPrev();$('mxN2').classList.add('glow-red');
+  // 3) 캐시 → MISS 응답
+  mxS(t+=1000,()=>{
+    mxClearEdges();$('mxN2').classList.add('glow-red');
     $('mxE12').classList.add('lit-red');
-    $('mxD12').classList.remove('run');void $('mxD12').offsetWidth;
     $('mxD12').style.background='var(--red)';$('mxD12').classList.add('rev');
-    $('mxL12').textContent='MISS!';$('mxL12').style.color='var(--red)';$('mxL12').classList.add('vis');
-    $('mxStatus').innerHTML='<strong style="color:var(--red)">캐시 MISS</strong> — 데이터 없음';
+    $('mxL12').textContent='데이터 없음!';$('mxL12').style.color='var(--red)';$('mxL12').classList.add('vis');
+    $('mxStatus').innerHTML='<strong style="color:var(--red)">캐시에 데이터 없음 (MISS)</strong>';
   });
-  // 4) 서버→Redis (SETNX)
-  mxStep(t+=1000,()=>{
-    mxClearPrev();$('mxN1').classList.add('glow');
-    $('mxE12').classList.add('lit');
-    $('mxD12').classList.remove('rev');$('mxD12').style.background='';void $('mxD12').offsetWidth;
-    $('mxD12').classList.add('run');
-    $('mxL12').textContent='SETNX lock';$('mxL12').style.color='';$('mxL12').classList.add('vis');
-    $('mxStatus').innerHTML='모든 요청이 동시에 SETNX 락 시도';
+  // 4) 모든 요청이 락 시도
+  mxS(t+=1000,()=>{
+    mxClearEdges();$('mxN1').classList.add('glow');
+    for(let i=0;i<4;i++)$('mxR'+i).classList.add('active');
+    $('mxE12').classList.add('lit');$('mxD12').classList.remove('rev');$('mxD12').style.background='';
+    void $('mxD12').offsetWidth;$('mxD12').classList.add('run');
+    $('mxL12').textContent='락 획득 시도';$('mxL12').style.color='';$('mxL12').classList.add('vis');
+    $('mxStatus').innerHTML='모든 요청이 동시에 분산 락 획득 시도';
   });
-  // 5) Redis→서버 (1개 성공)
-  mxStep(t+=1000,()=>{
-    mxClearPrev();$('mxN2').classList.add('glow-green');
+  // 5) 1개만 성공, 나머지 대기 (핵심 시각화)
+  mxS(t+=1200,()=>{
+    mxClearEdges();$('mxN2').classList.add('glow-green');
+    $('mxR0').classList.remove('active');$('mxR0').classList.add('winner');
+    for(let i=1;i<4;i++){$('mxR'+i).classList.remove('active');$('mxR'+i).classList.add('waiting')}
     $('mxE12').classList.add('lit-green');
     $('mxD12').classList.remove('run');void $('mxD12').offsetWidth;
     $('mxD12').style.background='var(--green)';$('mxD12').classList.add('rev');
-    $('mxL12').textContent='1개 성공!';$('mxL12').style.color='var(--green)';$('mxL12').classList.add('vis');
-    $('mxN0').classList.add('glow');
-    $('mxStatus').innerHTML='<strong style="color:var(--green)">1개만 락 획득</strong>, 나머지 N-1개는 대기';
+    $('mxL12').textContent='1개만 성공!';$('mxL12').style.color='var(--green)';$('mxL12').classList.add('vis');
+    $('mxStatus').innerHTML='<strong style="color:var(--green)">요청 1만 락 획득</strong> — 나머지는 대기';
   });
-  // 6) 서버→DB
-  mxStep(t+=1200,()=>{
-    mxClearPrev();$('mxN1').classList.add('glow');
+  // 6) 승리자 → DB 조회
+  mxS(t+=1200,()=>{
+    mxClearEdges();$('mxN1').classList.add('glow');
     $('mxE13').classList.add('lit');$('mxD13').classList.add('run');
-    $('mxL13').textContent='SELECT *';$('mxL13').classList.add('vis');
-    $('mxStatus').innerHTML='락 획득자가 DB에 쿼리';
+    $('mxL13').textContent='DB 조회';$('mxL13').classList.add('vis');
+    $('mxStatus').innerHTML='락 획득자가 DB에 데이터 조회';
   });
-  // 7) DB→서버
-  mxStep(t+=1200,()=>{
-    mxClearPrev();$('mxN3').classList.add('glow-purple');
+  // 7) DB → 결과 반환
+  mxS(t+=1200,()=>{
+    mxClearEdges();$('mxN3').classList.add('glow-purple');
     $('mxE13').classList.add('lit');
     $('mxD13').classList.remove('run');void $('mxD13').offsetWidth;$('mxD13').classList.add('rev');
     $('mxL13').textContent='결과 반환';$('mxL13').classList.add('vis');
     $('mxStatus').innerHTML='DB가 결과를 서버로 반환';
   });
-  // 8) 서버→Redis (SET + DEL)
-  mxStep(t+=1000,()=>{
-    mxClearPrev();$('mxN1').classList.add('glow-green');
+  // 8) 서버 → 캐시 저장 + 락 해제
+  mxS(t+=1000,()=>{
+    mxClearEdges();$('mxN1').classList.add('glow-green');
     $('mxE12').classList.add('lit-green');
-    $('mxD12').classList.remove('rev');$('mxD12').style.background='var(--green)';void $('mxD12').offsetWidth;
-    $('mxD12').classList.add('run');
-    $('mxL12').textContent='SET cache + DEL lock';$('mxL12').style.color='var(--green)';$('mxL12').classList.add('vis');
-    $('mxStatus').innerHTML='캐시에 저장하고 락 해제';
+    $('mxD12').classList.remove('rev');$('mxD12').style.background='var(--green)';
+    void $('mxD12').offsetWidth;$('mxD12').classList.add('run');
+    $('mxL12').textContent='캐시 저장 + 락 해제';$('mxL12').style.color='var(--green)';$('mxL12').classList.add('vis');
+    $('mxStatus').innerHTML='캐시에 결과 저장하고 락 해제';
   });
-  // 9) 서버→요청 (HIT 응답)
-  mxStep(t+=1000,()=>{
-    mxClearPrev();
-    $('mxN0').classList.add('glow-green');$('mxN1').classList.add('glow-green');$('mxN2').classList.add('glow-green');
+  // 9) 대기 요청들 캐시 적중 → 모두 완료
+  mxS(t+=1000,()=>{
+    mxClearEdges();
+    for(let i=0;i<4;i++){$('mxR'+i).classList.remove('winner','waiting');$('mxR'+i).classList.add('done')}
+    $('mxN1').classList.add('glow-green');$('mxN2').classList.add('glow-green');
     $('mxE01').classList.add('lit-green');
     $('mxD01').style.background='var(--green)';$('mxD01').classList.add('rev');
-    $('mxL01').textContent='캐시 HIT → 응답';$('mxL01').style.color='var(--green)';$('mxL01').classList.add('vis');
-    $('mxStatus').innerHTML='<strong style="color:var(--green)">대기 요청들이 갱신된 캐시에서 HIT!</strong>';
+    $('mxL01').textContent='캐시 적중 → 응답';$('mxL01').style.color='var(--green)';$('mxL01').classList.add('vis');
+    $('mxStatus').innerHTML='<strong style="color:var(--green)">대기 요청들이 갱신된 캐시에서 적중!</strong>';
     mxRunning=false;
   });
 }
-function mxClearPrev(){
-  ['mxN0','mxN1','mxN2','mxN3'].forEach(id=>{$(id).classList.remove('glow','glow-red','glow-green','glow-purple')});
-  ['mxE01','mxE12'].forEach(id=>{$(id).classList.remove('lit','lit-red','lit-green','lit-purple')});
+function mxClearEdges(){
+  ['mxN1','mxN2','mxN3'].forEach(id=>$(id).classList.remove('glow','glow-red','glow-green','glow-purple'));
+  ['mxE01','mxE12'].forEach(id=>$(id).classList.remove('lit','lit-red','lit-green','lit-purple'));
   $('mxE13').classList.remove('lit');
   ['mxD01','mxD12'].forEach(id=>{const d=$(id);d.classList.remove('run','rev');d.style.background=''});
   $('mxD13').classList.remove('run','rev');
