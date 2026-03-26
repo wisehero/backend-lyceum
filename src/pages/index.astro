@@ -24,28 +24,26 @@ import { categories } from '../data/categories';
     </header>
 
     <main class="categories">
-      {categories.map((cat) => (
-        <section class:list={['cat-section', cat.accentColor && `cat-${cat.accentColor}`]}>
+      {categories.filter(cat => cat.lectures.length > 0).map((cat) => (
+        <section class:list={['cat-section', `cat-${cat.accentColor}`]} style={`--cat-accent:var(--${cat.accentColor});--cat-accent-dim:var(--${cat.accentColor}-dim);--cat-accent-pale:var(--${cat.accentColor}-pale)`}>
           <div class="cat-header">
+            <span class="cat-accent-bar"></span>
             <a href={cat.href} class="cat-title-link">
               <h2>{cat.name}</h2>
             </a>
+            <span class="cat-lecture-count">{cat.lectures.length}</span>
           </div>
-          {cat.lectures.length > 0 ? (
-            <div class="cat-grid">
-              {cat.lectures.map((lec) => (
-                <a href={lec.href} class="lec-card">
-                  <h3>{lec.title}</h3>
-                  <p>{lec.subtitle}</p>
-                  <span class="lec-arrow">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                  </span>
-                </a>
-              ))}
-            </div>
-          ) : (
-            <p class="cat-empty">강의가 곧 추가됩니다.</p>
-          )}
+          <div class="cat-grid">
+            {cat.lectures.map((lec) => (
+              <a href={lec.href} class="lec-card">
+                <h3>{lec.title}</h3>
+                <p>{lec.subtitle}</p>
+                <span class="lec-arrow">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </span>
+              </a>
+            ))}
+          </div>
         </section>
       ))}
     </main>
@@ -212,13 +210,29 @@ import { categories } from '../data/categories';
     box-shadow: 0 8px 24px rgba(0,0,0,.15);
   }
   .lec-card:hover::before {
-    background: var(--text);
+    background: var(--cat-accent, var(--text));
   }
-  .cat-purple .cat-title-link h2 {
-    color: var(--purple);
+
+  /* Category accent */
+  .cat-accent-bar {
+    width: 4px;
+    height: 20px;
+    border-radius: 2px;
+    background: var(--cat-accent);
+    flex-shrink: 0;
   }
-  .cat-purple .lec-card:hover::before {
-    background: var(--purple);
+  .cat-title-link h2 {
+    color: var(--text);
+  }
+  .cat-lecture-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--cat-accent);
+    background: var(--cat-accent-pale);
+    border: 1px solid var(--cat-accent-dim);
+    padding: 2px 8px;
+    border-radius: 10px;
+    line-height: 1;
   }
   .lec-card h3 {
     font-family: var(--font-body);
