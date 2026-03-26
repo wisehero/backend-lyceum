@@ -1,0 +1,48 @@
+---
+import { ClientRouter } from 'astro:transitions';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'Dev Lyceum — Software Knowledge Archive' } = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{title} — Dev Lyceum</title>
+  <meta name="description" content={description}>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <ClientRouter />
+  <!-- Prevent flash: apply saved theme before render + after view transition -->
+  <script is:inline>
+    (function() {
+      function applyTheme() {
+        const saved = localStorage.getItem('theme');
+        if (saved === 'light') {
+          document.documentElement.classList.remove('dark');
+        } else {
+          document.documentElement.classList.add('dark');
+        }
+      }
+      applyTheme();
+      if (!window.__themeSwapInit) {
+        document.addEventListener('astro:after-swap', applyTheme);
+        window.__themeSwapInit = true;
+      }
+    })();
+  </script>
+  <slot name="head" />
+</head>
+<body>
+  <slot />
+</body>
+</html>
+
+<style is:global>
+  @import '../styles/global.css';
+</style>

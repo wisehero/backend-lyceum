@@ -1,0 +1,235 @@
+---
+import { categories } from '../data/categories';
+
+interface Props {
+  activeCategory?: string;
+}
+
+const { activeCategory } = Astro.props;
+---
+
+<header class="header-root">
+  <div class="header-inner">
+    <!-- Logo -->
+    <a href="/" class="header-logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+      </div>
+      <span class="logo-text">DEV <span class="logo-accent">LYCEUM</span></span>
+    </a>
+
+    <!-- Category Nav -->
+    <nav class="header-nav">
+      {categories.map((cat, i) => (
+        <>
+          <a
+            href={cat.href}
+            class:list={['nav-item', activeCategory === cat.key && 'active']}
+          >
+            {cat.name}
+          </a>
+          {i < categories.length - 1 && <span class="nav-divider" />}
+        </>
+      ))}
+    </nav>
+
+    <!-- Theme Toggle (far right) -->
+    <button id="theme-toggle" class="theme-btn" aria-label="테마 전환">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Mobile Category Nav -->
+  <nav class="header-nav-mobile">
+    {categories.map((cat, i) => (
+      <>
+        <a
+          href={cat.href}
+          class:list={['nav-item', activeCategory === cat.key && 'active']}
+        >
+          {cat.name}
+        </a>
+        {i < categories.length - 1 && <span class="nav-divider" />}
+      </>
+    ))}
+  </nav>
+</header>
+
+<style>
+  .header-root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(16px);
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+  }
+  .header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  /* Logo */
+  .header-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .logo-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--cyan-pale);
+    border: 1px solid var(--cyan-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .logo-icon svg {
+    width: 15px;
+    height: 15px;
+    color: var(--cyan);
+  }
+  .logo-text {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+  .logo-accent {
+    color: var(--cyan);
+  }
+
+  /* Nav */
+  .header-nav {
+    flex: 1;
+    display: none;
+    align-items: center;
+    gap: 4px;
+    justify-content: center;
+  }
+  @media (min-width: 900px) {
+    .header-nav { display: flex; }
+  }
+
+  .nav-item {
+    padding: 6px 12px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 6px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .nav-item:hover {
+    background: var(--surface);
+  }
+  .nav-item.active {
+    font-weight: 700;
+    background: var(--surface);
+  }
+
+  .nav-divider {
+    width: 1px;
+    height: 16px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  /* Theme Toggle */
+  .theme-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text);
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+  .theme-btn:hover {
+    border-color: var(--cyan-dim);
+    color: var(--cyan);
+  }
+  .theme-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  /* Dark mode: show sun, hide moon */
+  :global(.dark) .icon-sun { display: block; }
+  :global(.dark) .icon-moon { display: none; }
+  /* Light mode: show moon, hide sun */
+  .icon-sun { display: none; }
+  .icon-moon { display: block; }
+
+  /* Mobile Nav */
+  .header-nav-mobile {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 16px 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .header-nav-mobile::-webkit-scrollbar { display: none; }
+  .header-nav-mobile .nav-item {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+  .header-nav-mobile .nav-divider {
+    height: 12px;
+  }
+  @media (min-width: 900px) {
+    .header-nav-mobile { display: none; }
+  }
+</style>
+
+<script is:inline>
+  (function() {
+    if (window.__themeToggleInit) return;
+    window.__themeToggleInit = true;
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('#theme-toggle');
+      if (!btn) return;
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      if (isDark) {
+        html.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      } else {
+        html.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      }
+    });
+  })();
+</script>

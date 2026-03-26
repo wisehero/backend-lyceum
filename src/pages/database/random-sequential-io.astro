@@ -1,0 +1,722 @@
+---
+import BlogLayout from '../../layouts/BlogLayout.astro';
+const sections = [
+  { id: 'intro', title: 'Intro' },
+  { id: 'overview', title: 'Overview' },
+  { id: 'hdd', title: 'HDD Structure' },
+  { id: 'comparison', title: 'Comparison' },
+  { id: 'ssd-era', title: 'SSD Era' },
+  { id: 'random-io', title: 'Random I/O' },
+  { id: 'sequential-io', title: 'Sequential I/O' },
+  { id: 'design', title: 'Design Principles' },
+  { id: 'clustered-idx', title: 'Clustered Index' },
+  { id: 'practice', title: 'Practice' },
+  { id: 'summary', title: 'Summary' },
+];
+---
+
+<BlogLayout title="Random I/O vs Sequential I/O — Disk I/O Dashboard" sections={sections} category="database">
+
+<!-- S0: HERO -->
+<section class="article-hero article-section" id="intro">
+<div class="hero-c">
+  <div class="hero-beacon ai">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+  </div>
+  <h1 class="htitle ai">DISK<br><span class="gr">I/O</span></h1>
+  <p class="hdesc ai">Random I/O와 Sequential I/O의 차이를 이해하면,<br>인덱스 설계부터 Redo Log 구조까지 DB가 왜 그렇게 만들어졌는지가 보인다.</p>
+</div>
+</section>
+
+<!-- S1: WHY I/O -->
+<section class="article-section" id="overview">
+<div class="section-content">
+  <h2 class="stitle ai">디스크 I/O가 왜 <span class="hl-c">중요한가</span></h2>
+  <p class="ssub ai">CPU와 메모리는 나노초(ns) 단위로 동작하지만, 디스크는 밀리초(ms) 단위다.<br>수만 배에서 수십만 배 느리다.</p>
+  <div class="g2 ai">
+    <div class="card" style="padding:20px">
+      <h3 style="margin-bottom:14px;color:var(--cyan)">저장 계층별 접근 지연 시간</h3>
+      <div class="brow"><span class="blbl">CPU Register</span><div class="btrk"><div class="bfill grn" style="--w:1%"></div><span class="bval">~1ns</span></div></div>
+      <div class="brow"><span class="blbl">L1 Cache</span><div class="btrk"><div class="bfill grn" style="--w:2%"></div><span class="bval">~2ns</span></div></div>
+      <div class="brow"><span class="blbl">L2 Cache</span><div class="btrk"><div class="bfill blu" style="--w:3%"></div><span class="bval">~7ns</span></div></div>
+      <div class="brow"><span class="blbl">L3 Cache</span><div class="btrk"><div class="bfill blu" style="--w:5%"></div><span class="bval">~20ns</span></div></div>
+      <div class="brow"><span class="blbl">RAM</span><div class="btrk"><div class="bfill amb" style="--w:10%"></div><span class="bval">~100ns</span></div></div>
+      <div class="brow" style="margin-top:16px;padding-top:10px;border-top:1px dashed var(--border)"><span class="blbl" style="color:var(--amber)">SSD</span><div class="btrk"><div class="bfill amb" style="--w:50%"></div><span class="bval">~100&mu;s</span></div></div>
+      <div class="brow"><span class="blbl" style="color:var(--red)">HDD</span><div class="btrk"><div class="bfill red" style="--w:100%"></div><span class="bval">~10ms</span></div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="alert warn">
+        <strong>핵심 포인트</strong><br>RAM과 HDD 사이에는 약 <strong>100,000배</strong>의 속도 차이가 존재한다. 이 간극이 모든 DB 설계의 출발점이다.
+      </div>
+      <div class="card">
+        <div class="ci" style="background:var(--cyan-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <h3 style="color:var(--cyan)">디스크 접근 최소화</h3>
+        <p>DB의 거의 모든 내부 구조는 디스크 접근 횟수를 줄이기 위해 설계되었다.</p>
+      </div>
+      <div class="card">
+        <div class="ci" style="background:var(--green-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <h3 style="color:var(--green)">I/O 패턴이 핵심</h3>
+        <p>같은 양의 데이터라도 어떤 패턴으로 읽느냐에 따라 성능이 극적으로 달라진다.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S2: HDD STRUCTURE -->
+<section class="article-section" id="hdd">
+<div class="section-content">
+  <h2 class="stitle ai">HDD의 <span class="hl-c">물리적 구조</span></h2>
+  <p class="ssub ai">HDD는 회전하는 자기 디스크(Platter) 위에서 헤드(Head)가 물리적으로 이동하며 데이터를 읽고 쓴다.</p>
+
+  <div class="hdd-diagram ai">
+    <div class="hdd-parts">
+      <div class="hdd-part active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>Platter</span>
+        <span style="font-size:10px;color:var(--text-dim)">자기 디스크</span>
+      </div>
+      <div class="hdd-part">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>Spindle</span>
+        <span style="font-size:10px;color:var(--text-dim)">회전축</span>
+      </div>
+      <div class="hdd-part">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20l8-8 8 8"/><line x1="12" y1="12" x2="12" y2="4"/></svg>
+        <span>Arm</span>
+        <span style="font-size:10px;color:var(--text-dim)">액추에이터 암</span>
+      </div>
+      <div class="hdd-part">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h6l3-9 3 18 3-9h5"/></svg>
+        <span>Head</span>
+        <span style="font-size:10px;color:var(--text-dim)">읽기/쓰기 헤드</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:18px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px;color:var(--text)">디스크 I/O의 3단계</h3>
+    <div class="step-row">
+      <div class="step-card slow">
+        <div class="step-num">1</div>
+        <div class="step-name">Seek</div>
+        <div style="font-size:12px;margin-bottom:4px">헤드가 트랙으로 이동</div>
+        <div class="step-time">3 ~ 15ms</div>
+      </div>
+      <div class="step-card mid">
+        <div class="step-num">2</div>
+        <div class="step-name">Rotational Latency</div>
+        <div style="font-size:12px;margin-bottom:4px">플래터 회전 대기</div>
+        <div class="step-time">~4ms (7200RPM)</div>
+      </div>
+      <div class="step-card fast">
+        <div class="step-num">3</div>
+        <div class="step-name">Transfer</div>
+        <div style="font-size:12px;margin-bottom:4px">데이터 전송</div>
+        <div class="step-time">&lt;0.1ms</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert warn ai" style="margin-top:18px">
+    <strong>핵심</strong><br>Seek Time + Rotational Latency가 전체 I/O 시간의 <strong>99% 이상</strong>을 차지한다. 실제 데이터 전송(Transfer)은 거의 무시할 수 있을 만큼 빠르다.
+  </div>
+</div>
+</section>
+
+<!-- S3: RANDOM vs SEQUENTIAL -->
+<section class="article-section" id="comparison">
+<div class="section-content">
+  <h2 class="stitle ai">Random I/O vs <span class="hl-g">Sequential I/O</span></h2>
+  <p class="ssub ai">같은 데이터 양이라도 접근 패턴에 따라 성능이 수십~수백 배 달라진다.</p>
+
+  <div class="g2 ai">
+    <!-- Sequential I/O -->
+    <div class="io-viz">
+      <h4 style="color:var(--green)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" style="width:18px;height:18px;vertical-align:middle"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Sequential I/O
+      </h4>
+      <div class="block-row" id="seqBlocks">
+        <div class="blk seq">1</div>
+        <div class="blk seq">2</div>
+        <div class="blk seq">3</div>
+        <div class="blk seq">4</div>
+        <div class="blk seq">5</div>
+        <div class="blk seq">6</div>
+        <div class="blk seq">7</div>
+        <div class="blk seq">8</div>
+      </div>
+      <div class="arrow-row">
+        <div class="arr-seg"></div><div class="arr-seg"></div><div class="arr-seg"></div><div class="arr-seg"></div><div class="arr-seg"></div><div class="arr-seg"></div><div class="arr-seg"></div><div class="arr-head"></div>
+      </div>
+      <p class="body-text" style="text-align:center">연속된 블록을 순서대로 읽는다<br><strong style="color:var(--green)">Seek 1회 + 연속 Transfer</strong></p>
+    </div>
+
+    <!-- Random I/O -->
+    <div class="io-viz">
+      <h4 style="color:var(--red)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" style="width:18px;height:18px;vertical-align:middle"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M3 4l17 17"/></svg>
+        Random I/O
+      </h4>
+      <div class="block-row" id="rndBlocks">
+        <div class="blk rnd">5</div>
+        <div class="blk">-</div>
+        <div class="blk rnd">1</div>
+        <div class="blk">-</div>
+        <div class="blk rnd">8</div>
+        <div class="blk">-</div>
+        <div class="blk rnd">3</div>
+        <div class="blk">-</div>
+      </div>
+      <div class="arrow-row">
+        <div class="arr-seg rnd"></div>
+        <span style="color:var(--red);font-size:10px;font-family:var(--font-mono)">SEEK</span>
+        <div class="arr-seg rnd"></div>
+        <span style="color:var(--red);font-size:10px;font-family:var(--font-mono)">SEEK</span>
+        <div class="arr-seg rnd"></div>
+        <span style="color:var(--red);font-size:10px;font-family:var(--font-mono)">SEEK</span>
+        <div class="arr-seg rnd"></div>
+        <div class="arr-head rnd"></div>
+      </div>
+      <p class="body-text" style="text-align:center">흩어진 블록을 찾아다니며 읽는다<br><strong style="color:var(--red)">매번 Seek 발생 = 느림</strong></p>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:18px">
+    <table class="cmp-table">
+      <thead><tr><th>항목</th><th>Sequential I/O</th><th>Random I/O</th></tr></thead>
+      <tbody>
+        <tr><td>HDD 처리량</td><td><span class="badge good">200+ MB/s</span></td><td><span class="badge bad">0.5~2 MB/s</span></td></tr>
+        <tr><td>SSD 처리량</td><td><span class="badge good">500~7000 MB/s</span></td><td><span class="badge mid">50~500 MB/s</span></td></tr>
+        <tr><td>Seek 비용</td><td>최초 1회</td><td>매 블록마다 발생</td></tr>
+        <tr><td>DB 예시</td><td>Full Table Scan, Redo Log Write</td><td>Index Lookup 후 Table 접근</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</section>
+
+<!-- S4: SSD ERA -->
+<section class="article-section" id="ssd-era">
+<div class="section-content">
+  <h2 class="stitle ai">SSD 시대에도 <span class="hl-a">이 구분이 중요한 이유</span></h2>
+  <p class="ssub ai">SSD는 물리적 Seek이 없지만, Sequential I/O와 Random I/O의 성능 차이는 여전히 크다.</p>
+
+  <div class="g2 ai">
+    <div class="card">
+      <div class="ci" style="background:var(--cyan-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h2M10 12h2M14 12h2M18 12h2"/></svg></div>
+      <h3 style="color:var(--cyan)">내부 병렬 처리</h3>
+      <p>Sequential I/O는 SSD 내부의 여러 NAND 칩에 대한 <strong style="color:var(--cyan)">병렬성을 최대한 활용</strong>한다. Random I/O는 병렬화가 어렵다.</p>
+    </div>
+    <div class="card">
+      <div class="ci" style="background:var(--green-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+      <h3 style="color:var(--green)">I/O 단위 차이</h3>
+      <p>Sequential 요청은 OS가 <strong style="color:var(--green)">Merged I/O</strong>로 큰 단위로 묶어준다. Random 요청은 개별적으로 처리되어 오버헤드가 크다.</p>
+    </div>
+    <div class="card">
+      <div class="ci" style="background:var(--red-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+      <h3 style="color:var(--red)">Write Amplification</h3>
+      <p>Random Write는 <strong style="color:var(--red)">GC(Garbage Collection) 빈도를 증가</strong>시켜 SSD 수명을 단축시킨다. Sequential Write는 GC 부담이 적다.</p>
+    </div>
+    <div class="card">
+      <div class="ci" style="background:var(--amber-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+      <h3 style="color:var(--amber)">OS 최적화</h3>
+      <p><strong style="color:var(--amber)">Read-Ahead, I/O Scheduler</strong> 등 OS의 최적화 기법은 Sequential I/O에 맞춰 설계되어 있다.</p>
+    </div>
+  </div>
+
+  <div class="alert info ai" style="margin-top:18px">
+    <strong>결론</strong><br>SSD에서도 Sequential I/O는 Random I/O 대비 <strong>3~10배</strong> 빠르다. 물리적 Seek은 사라졌지만, 논리적 효율 차이는 남아 있다.
+  </div>
+</div>
+</section>
+
+<!-- S5: RANDOM I/O IN DB -->
+<section class="article-section" id="random-io">
+<div class="section-content">
+  <h2 class="stitle ai">DB에서 <span class="hl">Random I/O</span>가 발생하는 상황</h2>
+  <p class="ssub ai">인덱스가 가리키는 행이 여러 페이지에 흩어져 있으면 Random I/O가 발생한다.</p>
+
+  <div class="idx-diagram ai">
+    <p style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">Index Range Scan &rarr; Table Lookup (Random I/O)</p>
+    <div style="margin-bottom:8px">
+      <p style="font-size:11px;color:var(--text-dim);margin-bottom:6px;font-family:var(--font-mono)">INDEX (B-Tree Leaf) - Sequential Scan</p>
+      <div class="idx-row">
+        <div class="idx-node leaf">10</div>
+        <span class="flow-arrow">&rarr;</span>
+        <div class="idx-node leaf">20</div>
+        <span class="flow-arrow">&rarr;</span>
+        <div class="idx-node leaf">30</div>
+        <span class="flow-arrow">&rarr;</span>
+        <div class="idx-node leaf">40</div>
+        <span class="flow-arrow">&rarr;</span>
+        <div class="idx-node leaf">50</div>
+      </div>
+    </div>
+    <div style="text-align:center;margin:8px 0">
+      <span style="color:var(--red);font-size:12px;font-weight:700;font-family:var(--font-mono)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" style="width:14px;height:14px;vertical-align:middle"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+        Random Jump!
+      </span>
+    </div>
+    <div>
+      <p style="font-size:11px;color:var(--text-dim);margin-bottom:6px;font-family:var(--font-mono)">TABLE DATA PAGES - Random Access</p>
+      <div class="idx-row">
+        <div class="idx-node page">P.47</div>
+        <div class="idx-node">...</div>
+        <div class="idx-node page">P.12</div>
+        <div class="idx-node">...</div>
+        <div class="idx-node page">P.89</div>
+        <div class="idx-node">...</div>
+        <div class="idx-node page">P.3</div>
+        <div class="idx-node">...</div>
+        <div class="idx-node page">P.61</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2 ai" style="margin-top:14px">
+    <div class="alert warn">
+      <strong>Optimizer 판단</strong><br>인덱스로 조회해야 할 행이 전체 테이블의 <strong>20~25% 이상</strong>이면, DB 옵티마이저는 인덱스 대신 <strong>Full Table Scan(Sequential)</strong>을 선택한다. Random I/O보다 순차 읽기가 더 빠르기 때문이다.
+    </div>
+    <div class="alert safe">
+      <strong>Covering Index</strong><br>인덱스에 필요한 모든 컬럼을 포함하면, 테이블 접근 자체가 불필요하다. <strong>Random I/O = 0</strong>
+    </div>
+  </div>
+
+  <div class="code-block ai">
+    <pre><span class="cm">// Covering Index 예시 (JPA + Spring)</span>
+<span class="ann">@Entity</span>
+<span class="kw">public class</span> <span class="tp">Order</span> &#123;
+    <span class="ann">@Id</span> <span class="kw">private</span> <span class="tp">Long</span> id;
+    <span class="ann">@Column</span> <span class="kw">private</span> <span class="tp">String</span> status;
+    <span class="ann">@Column</span> <span class="kw">private</span> <span class="tp">LocalDate</span> orderDate;
+&#125;
+
+<span class="cm">-- Covering Index: (status, orderDate)만으로 조회 완결</span>
+<span class="cm">-- Table Lookup 불필요 → Random I/O 제거</span>
+<span class="ann">@Query</span>(<span class="str">"SELECT o.status, o.orderDate FROM Order o WHERE o.status = :s"</span>)
+<span class="tp">List</span>&lt;<span class="tp">Object[]</span>&gt; <span class="fn">findByStatus</span>(<span class="ann">@Param</span>(<span class="str">"s"</span>) <span class="tp">String</span> status);</pre>
+  </div>
+</div>
+</section>
+
+<!-- S6: SEQUENTIAL I/O IN DB -->
+<section class="article-section" id="sequential-io">
+<div class="section-content">
+  <h2 class="stitle ai">DB에서 <span class="hl-g">Sequential I/O</span>가 발생하는 상황</h2>
+  <p class="ssub ai">DB는 가능한 한 데이터를 연속된 위치에 저장하고, 순차적으로 읽고 쓰도록 설계되어 있다.</p>
+
+  <div class="g3 ai">
+    <div class="card">
+      <div class="ci" style="background:var(--cyan-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg></div>
+      <h3 style="color:var(--cyan)">Full Table Scan</h3>
+      <p>테이블의 처음부터 끝까지 연속된 페이지를 순서대로 읽는다.<br>인덱스 없이 대량 데이터를 처리할 때 사용된다.</p>
+    </div>
+
+    <div class="card">
+      <div class="ci" style="background:var(--green-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+      <h3 style="color:var(--green)">Redo Log Write (WAL)</h3>
+      <p>Write-Ahead Log는 항상 <strong style="color:var(--green)">Append-Only</strong>로 기록된다.<br>끝에 이어 붙이기만 하므로 Sequential Write이다.</p>
+    </div>
+
+    <div class="card">
+      <div class="ci" style="background:rgba(124,58,237,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg></div>
+      <h3 style="color:#c4b5fd">Index Leaf Node Scan</h3>
+      <p>B-Tree의 리프 노드들은 <strong style="color:#c4b5fd">Doubly Linked List</strong>로 연결되어 있어, 순차적으로 순회할 수 있다.</p>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:18px">
+    <p style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">WAL (Write-Ahead Logging) 흐름</p>
+    <div class="wal-flow">
+      <div class="wal-node wr">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        Write
+      </div>
+      <div class="wal-arr">&rarr;</div>
+      <div class="wal-node log">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Redo Log
+      </div>
+      <div class="wal-arr">&rarr;</div>
+      <div class="wal-node" style="border-color:var(--cyan-dim);color:var(--cyan);background:var(--cyan-pale)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Commit OK
+      </div>
+      <div class="wal-arr" style="color:var(--text-dim)">..later..</div>
+      <div class="wal-node db">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        Data File
+      </div>
+    </div>
+    <p class="body-text" style="text-align:center">데이터를 먼저 Redo Log에 <strong style="color:var(--green)">Sequential Write</strong>로 기록한 뒤 Commit한다.<br>실제 Data File 반영은 나중에 Checkpoint 시점에 일괄 수행한다.</p>
+  </div>
+</div>
+</section>
+
+<!-- S7: DESIGN PRINCIPLES -->
+<section class="article-section" id="design">
+<div class="section-content">
+  <h2 class="stitle ai">DB 설계 원칙과 <span class="hl-c">I/O 패턴</span></h2>
+  <p class="ssub ai">DB 내부의 거의 모든 구조는 디스크 I/O를 줄이거나, Random I/O를 Sequential I/O로 전환하기 위해 만들어졌다.</p>
+
+  <div class="ai">
+    <table class="cmp-table">
+      <thead><tr><th>DB 구조</th><th>I/O 패턴</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700;color:var(--cyan)">Buffer Pool</td>
+          <td><span class="badge good">I/O 제거</span></td>
+          <td>자주 접근하는 페이지를 메모리에 캐싱하여 디스크 접근 자체를 줄인다</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--green)">WAL (Redo Log)</td>
+          <td><span class="badge good">Sequential Write</span></td>
+          <td>Random Write를 Append-Only Sequential Write로 전환한다</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--amber)">Checkpoint</td>
+          <td><span class="badge mid">Batch Write</span></td>
+          <td>변경된 페이지를 모아서 한 번에 디스크에 반영하여 I/O 횟수를 줄인다</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--cyan)">Clustered Index</td>
+          <td><span class="badge good">Sequential Read</span></td>
+          <td>PK 순서대로 데이터를 물리적으로 저장하여 범위 조회를 Sequential I/O로 만든다</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--green)">Covering Index</td>
+          <td><span class="badge good">Random I/O 제거</span></td>
+          <td>인덱스만으로 쿼리 결과를 반환하여 Table Lookup을 없앤다</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--amber)">Index Range Scan</td>
+          <td><span class="badge mid">Sequential + Random</span></td>
+          <td>리프 노드 순회는 Sequential, Table Lookup은 Random</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:#c4b5fd">Merge Sort</td>
+          <td><span class="badge good">Sequential R/W</span></td>
+          <td>대용량 정렬 시 임시 파일을 순차적으로 읽고 쓴다</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="quote-box ai">
+    <strong>"어떻게 하면 디스크에 덜 가고, 갈 때는 순차적으로 갈 수 있는가?"</strong><br>
+    이 질문 하나가 DB 내부 구조 설계의 핵심 원칙이다.
+  </div>
+</div>
+</section>
+
+<!-- S8: CLUSTERED INDEX -->
+<section class="article-section" id="clustered-idx">
+<div class="section-content">
+  <h2 class="stitle ai">Clustered Index와 <span class="hl-c">I/O 패턴</span></h2>
+  <p class="ssub ai">Clustered Index는 테이블 데이터 자체를 PK 순서로 물리적으로 정렬하여 저장한다.</p>
+
+  <div class="g2 ai">
+    <div class="io-viz">
+      <h4 style="color:var(--green)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" style="width:16px;height:16px;vertical-align:middle"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Clustered Index (PK 순서 저장)
+      </h4>
+      <div class="block-row">
+        <div class="blk seq">1</div>
+        <div class="blk seq">2</div>
+        <div class="blk seq">3</div>
+        <div class="blk seq">4</div>
+        <div class="blk seq">5</div>
+        <div class="blk seq">6</div>
+      </div>
+      <p class="body-text" style="text-align:center">PK 순서 = 물리적 저장 순서<br><strong style="color:var(--green)">범위 조회 시 Sequential I/O</strong></p>
+    </div>
+
+    <div class="io-viz">
+      <h4 style="color:var(--red)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" style="width:16px;height:16px;vertical-align:middle"><path d="M16 3h5v5M4 20L21 3"/></svg>
+        Secondary Index (PK 뒤죽박죽)
+      </h4>
+      <div class="block-row">
+        <div class="blk rnd">5</div>
+        <div class="blk rnd">1</div>
+        <div class="blk rnd">6</div>
+        <div class="blk rnd">2</div>
+        <div class="blk rnd">4</div>
+        <div class="blk rnd">3</div>
+      </div>
+      <p class="body-text" style="text-align:center">Secondary Index 순서 =/= 물리 순서<br><strong style="color:var(--red)">Table Lookup마다 Random I/O</strong></p>
+    </div>
+  </div>
+
+  <div class="ai" style="margin-top:18px">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px;color:var(--text)">PK 전략 비교</h3>
+    <table class="cmp-table">
+      <thead><tr><th>전략</th><th>INSERT 순서</th><th>I/O 패턴</th><th>장점</th><th>단점</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700;color:var(--green)">AUTO_INCREMENT</td>
+          <td><span class="badge good">순차 증가</span></td>
+          <td><span class="badge good">Sequential</span></td>
+          <td>페이지 분할 없음, Insert 빠름</td>
+          <td>분산 환경에서 충돌 가능</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--red)">UUID (v4)</td>
+          <td><span class="badge bad">완전 랜덤</span></td>
+          <td><span class="badge bad">Random</span></td>
+          <td>전역 고유, 분산 환경에 적합</td>
+          <td>페이지 분할 빈번, Insert 느림</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--amber)">ULID / UUID v7</td>
+          <td><span class="badge mid">시간순 정렬</span></td>
+          <td><span class="badge good">Sequential</span></td>
+          <td>시간 순서 보장 + 전역 고유</td>
+          <td>UUID v4 대비 구현 복잡</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="alert info ai" style="margin-top:14px">
+    <strong>실무 권장</strong><br>MySQL InnoDB에서는 PK를 <strong>AUTO_INCREMENT</strong> 또는 <strong>ULID/UUID v7</strong>처럼 순차적인 값으로 설정하는 것이 I/O 효율에 유리하다.
+  </div>
+</div>
+</section>
+
+<!-- S9: PRACTICE -->
+<section class="article-section" id="practice">
+<div class="section-content">
+  <h2 class="stitle ai">백엔드 개발자 <span class="hl-g">실무 적용</span></h2>
+  <p class="ssub ai">인덱스가 잘 작동하는지 확인하는 가장 확실한 방법은 EXPLAIN이다.</p>
+
+  <div class="code-block ai">
+    <pre><span class="cm">-- 쿼리 실행 계획 확인</span>
+<span class="kw">EXPLAIN</span> <span class="kw">SELECT</span> * <span class="kw">FROM</span> orders
+<span class="kw">WHERE</span> status = <span class="str">'SHIPPED'</span>
+  <span class="kw">AND</span> order_date &gt;= <span class="str">'2024-01-01'</span>;
+
+<span class="cm">-- 확인 포인트:</span>
+<span class="cm">-- type: ALL(Full Scan) vs ref/range(Index Scan)</span>
+<span class="cm">-- rows: 예상 조회 행 수</span>
+<span class="cm">-- Extra: Using index(Covering) vs Using filesort</span></pre>
+  </div>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px;color:var(--text)">I/O 최적화 체크리스트</h3>
+    <div class="check-item">
+      <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="check-text"><strong>자주 조회하는 조건이 인덱스를 타는가?</strong><br>WHERE 절의 주요 컬럼에 적절한 인덱스가 있는지 EXPLAIN으로 확인한다.</div>
+    </div>
+    <div class="check-item">
+      <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="check-text"><strong>Table Lookup이 너무 많지 않은가?</strong><br>인덱스 스캔 후 테이블 접근 비율이 20~25%를 넘으면 Full Scan이 더 효율적일 수 있다.</div>
+    </div>
+    <div class="check-item">
+      <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="check-text"><strong>Covering Index로 해결 가능한가?</strong><br>SELECT 절에 필요한 컬럼을 모두 인덱스에 포함시켜 Table Lookup 자체를 제거한다.</div>
+    </div>
+    <div class="check-item">
+      <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="check-text"><strong>PK는 순차적인 값인가?</strong><br>UUID v4 대신 AUTO_INCREMENT나 ULID를 사용하여 Clustered Index의 Sequential Insert를 보장한다.</div>
+    </div>
+    <div class="check-item">
+      <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="check-text"><strong>대량 INSERT 시 정렬 순서를 고려했는가?</strong><br>PK 순서대로 데이터를 정렬한 후 INSERT하면 페이지 분할을 최소화할 수 있다.</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S10: SUMMARY -->
+<section class="article-section" id="summary">
+<div class="section-content">
+  <h2 class="stitle ai"><span class="hl-g">최종 정리</span></h2>
+
+  <div class="ai">
+    <table class="cmp-table">
+      <thead><tr><th>관점</th><th style="color:var(--red)">Random I/O</th><th style="color:var(--green)">Sequential I/O</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700">한마디 정의</td>
+          <td>흩어진 위치를 찾아다니며 읽기/쓰기</td>
+          <td>연속된 위치를 순서대로 읽기/쓰기</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">HDD 병목</td>
+          <td><span class="badge bad">Seek + Rotation 매번 발생</span></td>
+          <td><span class="badge good">최초 1회 Seek만 필요</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">SSD 차이</td>
+          <td>병렬성 활용 불가, GC 부담 증가</td>
+          <td>NAND 칩 병렬성 극대화, GC 부담 적음</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">DB 발생 지점</td>
+          <td>Secondary Index Lookup, UUID PK Insert</td>
+          <td>Full Table Scan, Redo Log, Leaf Node Scan</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">최적화 방향</td>
+          <td>Covering Index, Buffer Pool, 순차 PK</td>
+          <td>WAL, Checkpoint, Clustered Index</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">백엔드 관점</td>
+          <td>EXPLAIN으로 Table Lookup 비율 확인</td>
+          <td>PK 전략, 인덱스 설계로 Sequential 유도</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="quote-box ai" style="margin-top:18px;border-left-color:var(--green)">
+    <strong style="color:var(--green)">"DB의 거의 모든 내부 구조는 Random I/O를 줄이거나, Sequential I/O로 전환하기 위해 설계되었다."</strong>
+  </div>
+
+  <div class="sum-banner ai">
+    <h3>KEY TAKEAWAY</h3>
+    <p>디스크 I/O의 핵심은 <strong style="color:var(--red)">얼마나 읽느냐</strong>가 아니라 <strong style="color:var(--green)">어떻게 읽느냐</strong>이다.<br>
+    Random I/O를 줄이고, 불가피하면 Sequential I/O로 전환하라.<br>
+    이 원칙이 Buffer Pool, WAL, Clustered Index, Covering Index 모두의 설계 이유이다.</p>
+  </div>
+</div>
+</section>
+
+</BlogLayout>
+
+<style is:global>
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 30% 20%,rgba(0,212,255,.06) 0%,transparent 50%),radial-gradient(ellipse at 70% 80%,rgba(255,51,68,.04) 0%,transparent 50%);pointer-events:none;z-index:0}
+
+/* ── BAR CHART ── */
+.brow{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.blbl{font-size:12px;font-weight:500;color:var(--text-sec);min-width:100px;flex-shrink:0}
+.btrk{flex:1;min-height:26px;background:var(--surface);border-radius:13px;border:1px solid var(--border);position:relative;overflow:hidden}
+.bfill{height:100%;position:absolute;top:0;left:0;bottom:0;border-radius:13px;width:0;transition:width 1.2s ease}
+.article-section .bfill{width:var(--w)}
+.bfill.red{background:linear-gradient(90deg,var(--red),rgba(255,51,68,.6))}
+.bfill.amb{background:linear-gradient(90deg,var(--amber),rgba(255,170,0,.6))}
+.bfill.grn{background:linear-gradient(90deg,var(--green),rgba(0,255,136,.6))}
+.bfill.blu{background:linear-gradient(90deg,var(--cyan),rgba(0,212,255,.6))}
+.bval{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;color:var(--text);font-family:var(--font-mono)}
+
+/* ── I/O PATTERN VISUALIZER ── */
+.io-viz{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;position:relative;overflow:hidden}
+.io-viz::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.015) 2px,rgba(0,212,255,.015) 4px);pointer-events:none}
+.io-viz h4{font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:14px;text-align:center}
+
+.block-row{display:flex;gap:6px;justify-content:center;margin-bottom:10px;flex-wrap:wrap}
+.blk{width:42px;min-height:42px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:var(--font-mono);border:1px solid var(--border);background:var(--surface);transition:all .4s;color:var(--text-dim)}
+.blk.seq{border-color:var(--green-dim);color:var(--green);background:var(--green-pale)}
+.blk.rnd{border-color:var(--red-dim);color:var(--red);background:var(--red-pale)}
+.blk.hi{box-shadow:0 0 12px rgba(0,212,255,.3);border-color:var(--cyan);color:var(--cyan);background:var(--cyan-pale)}
+
+.arrow-row{display:flex;gap:2px;justify-content:center;align-items:center;margin-bottom:10px;min-height:24px}
+.arr-seg{height:2px;width:36px;border-radius:1px;background:var(--green);position:relative}
+.arr-seg.rnd{background:var(--red)}
+.arr-head{width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:7px solid var(--green)}
+.arr-head.rnd{border-left-color:var(--red)}
+
+/* ── HDD DIAGRAM ── */
+.hdd-diagram{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;text-align:center}
+.hdd-parts{display:flex;align-items:center;justify-content:center;gap:16px;margin:14px 0;flex-wrap:wrap}
+.hdd-part{min-width:90px;min-height:80px;padding:12px 14px;border-radius:var(--r-lg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);transition:all .3s}
+.hdd-part svg{width:28px;height:28px}
+.hdd-part.active{border-color:var(--cyan);background:var(--cyan-pale);color:var(--cyan)}
+
+.step-row{display:flex;gap:12px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.step-card{min-width:140px;padding:14px;border-radius:var(--r-md);text-align:center;border:1px solid var(--border);background:var(--surface)}
+.step-card .step-num{font-family:var(--font-mono);font-size:18px;font-weight:800;margin-bottom:4px}
+.step-card .step-name{font-size:12px;font-weight:600;margin-bottom:2px}
+.step-card .step-time{font-family:var(--font-mono);font-size:11px;color:var(--text-dim)}
+.step-card.slow{border-color:var(--red-dim);color:var(--red)}
+.step-card.slow .step-num{color:var(--red)}
+.step-card.mid{border-color:var(--amber-dim);color:var(--amber)}
+.step-card.mid .step-num{color:var(--amber)}
+.step-card.fast{border-color:var(--green-dim);color:var(--green)}
+.step-card.fast .step-num{color:var(--green)}
+
+/* ── INDEX DIAGRAM ── */
+.idx-diagram{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;position:relative;overflow:hidden}
+.idx-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.idx-node{min-width:50px;min-height:36px;padding:6px 10px;border-radius:var(--r-sm);font-size:11px;font-weight:600;text-align:center;font-family:var(--font-mono);border:1px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center}
+.idx-node.leaf{border-color:var(--green-dim);color:var(--green);background:var(--green-pale)}
+.idx-node.page{border-color:var(--red-dim);color:var(--red);background:var(--red-pale)}
+.idx-node.pk{border-color:var(--cyan-dim);color:var(--cyan);background:var(--cyan-pale)}
+.jump-arrow{color:var(--red);font-family:var(--font-mono);font-size:16px;font-weight:700}
+.flow-arrow{color:var(--green);font-family:var(--font-mono);font-size:16px;font-weight:700}
+
+/* ── CHECKLIST ── */
+.check-item{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 18px;display:flex;align-items:flex-start;gap:12px;transition:all .3s;margin-bottom:8px}
+.check-item:hover{border-color:var(--cyan-dim);transform:translateX(4px)}
+.check-icon{width:24px;min-height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--green-pale);border:1px solid var(--green-dim)}
+.check-icon svg{width:14px;height:14px;color:var(--green)}
+.check-text{font-size:15px;color:var(--text-sec);line-height:1.7}
+.check-text strong{color:var(--text)}
+
+/* ── QUOTE BOX ── */
+.quote-box{background:var(--bg-card);border-left:3px solid var(--cyan);border-radius:0 var(--r-lg) var(--r-lg) 0;padding:18px 22px;margin:18px 0;font-size:14px;color:var(--text-sec);line-height:1.9;font-style:italic}
+.quote-box strong{color:var(--cyan);font-style:normal}
+
+/* ── WAL DIAGRAM ── */
+.wal-flow{display:flex;align-items:center;justify-content:center;gap:8px;margin:14px 0;flex-wrap:wrap}
+.wal-node{min-width:80px;min-height:56px;padding:10px 14px;border-radius:var(--r-md);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:600;gap:4px;border:1px solid var(--border);background:var(--surface)}
+.wal-node svg{width:20px;height:20px}
+.wal-node.wr{border-color:var(--green-dim);color:var(--green);background:var(--green-pale)}
+.wal-node.log{border-color:var(--amber-dim);color:var(--amber);background:var(--amber-pale)}
+.wal-node.db{border-color:rgba(124,58,237,.3);color:#c4b5fd;background:rgba(124,58,237,.12)}
+.wal-arr{font-family:var(--font-mono);font-size:14px;color:var(--text-dim);font-weight:700}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){.g2,.g3,.g4{grid-template-columns:1fr}.hdd-parts{flex-direction:column;align-items:center}.step-row{flex-direction:column;align-items:center}.io-viz{padding:14px}.block-row{gap:4px}.blk{width:34px;min-height:34px;font-size:9px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+
+<script>
+// ── I/O Pattern Animation (comparison section) ──
+let seqAnim=null,rndAnim=null;
+function animateSeq(){
+  const blks=document.querySelectorAll('#seqBlocks .blk');
+  let i=0;
+  if(seqAnim)clearInterval(seqAnim);
+  blks.forEach(b=>b.classList.remove('hi'));
+  seqAnim=setInterval(()=>{
+    blks.forEach(b=>b.classList.remove('hi'));
+    if(i<blks.length){blks[i].classList.add('hi');i++}
+    else{i=0}
+  },400);
+}
+function animateRnd(){
+  const blks=document.querySelectorAll('#rndBlocks .blk.rnd');
+  const order=[2,0,3,1];
+  let i=0;
+  if(rndAnim)clearInterval(rndAnim);
+  blks.forEach(b=>b.classList.remove('hi'));
+  rndAnim=setInterval(()=>{
+    blks.forEach(b=>b.classList.remove('hi'));
+    if(i<order.length){blks[order[i]].classList.add('hi');i++}
+    else{i=0}
+  },600);
+}
+
+// Start animations when comparison section is visible
+const compSection=document.getElementById('comparison');
+if(compSection){
+  const obs=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){animateSeq();animateRnd()}
+      else{
+        if(seqAnim)clearInterval(seqAnim);
+        if(rndAnim)clearInterval(rndAnim);
+        document.querySelectorAll('#seqBlocks .blk, #rndBlocks .blk').forEach(b=>b.classList.remove('hi'));
+      }
+    });
+  },{threshold:0.3});
+  obs.observe(compSection);
+}
+</script>

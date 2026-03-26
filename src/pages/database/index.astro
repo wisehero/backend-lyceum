@@ -1,0 +1,13 @@
+---
+import CategoryLayout from '../../layouts/CategoryLayout.astro';
+import { categories } from '../../data/categories';
+const cat = categories.find(c => c.key === 'database')!;
+---
+
+<CategoryLayout title={cat.name} subtitle="디스크 I/O, 트랜잭션 로그, 격리 수준의 핵심 원리" categoryKey={cat.key} accentColor={cat.accentColor} lectures={cat.lectures}>
+  <svg slot="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+  </svg>
+</CategoryLayout>

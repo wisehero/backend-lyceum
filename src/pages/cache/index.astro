@@ -1,0 +1,11 @@
+---
+import CategoryLayout from '../../layouts/CategoryLayout.astro';
+import { categories } from '../../data/categories';
+const cat = categories.find(c => c.key === 'redis')!;
+---
+
+<CategoryLayout title={cat.name} subtitle="캐시 전략, 동기화, 장애 대응의 핵심 원리" categoryKey={cat.key} accentColor={cat.accentColor} lectures={cat.lectures}>
+  <svg slot="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+  </svg>
+</CategoryLayout>

@@ -1,0 +1,11 @@
+---
+import CategoryLayout from '../../layouts/CategoryLayout.astro';
+import { categories } from '../../data/categories';
+const cat = categories.find(c => c.key === 'spring')!;
+---
+
+<CategoryLayout title={cat.name} categoryKey={cat.key} accentColor={cat.accentColor} lectures={cat.lectures}>
+  <svg slot="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 14a4 4 0 1 1 4-4 4 4 0 0 1-4 4z"/>
+  </svg>
+</CategoryLayout>

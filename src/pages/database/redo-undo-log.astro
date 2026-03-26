@@ -1,0 +1,713 @@
+---
+import BlogLayout from '../../layouts/BlogLayout.astro';
+const sections = [
+  { id: 'intro', title: 'Intro' },
+  { id: 'why-logs', title: 'Why Logs' },
+  { id: 'redo-log', title: 'Redo Log' },
+  { id: 'undo-log', title: 'Undo Log' },
+  { id: 'write-flow', title: 'Write Flow' },
+  { id: 'recovery', title: 'Crash Recovery' },
+  { id: 'mvcc', title: 'MVCC' },
+  { id: 'practice', title: 'Practice' },
+  { id: 'summary', title: 'Summary' },
+];
+---
+
+<BlogLayout title="Redo Log & Undo Log — Transaction Recovery Dashboard" sections={sections} category="database">
+
+<!-- S0: HERO -->
+<section class="article-hero article-section" id="intro">
+<div class="hero-c">
+  <div class="hero-beacon ai">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+  </div>
+  <h1 class="htitle ai">REDO &amp;<br><span class="gr">UNDO LOG</span></h1>
+  <p class="hdesc ai">트랜잭션의 내구성과 원자성을 보장하는 두 개의 로그.<br>DB가 어떤 상황에서도 데이터를 잃지 않는 비밀이 여기에 있다.</p>
+</div>
+</section>
+
+<!-- S1: WHY LOGS -->
+<section class="article-section" id="why-logs">
+<div class="section-content">
+  <h2 class="stitle ai">왜 <span class="hl-c">트랜잭션 로그</span>가 필요한가</h2>
+  <p class="ssub ai">데이터베이스는 성능을 위해 변경 사항을 메모리(Buffer Pool)에 먼저 반영한다. 하지만 메모리는 휘발성이다.</p>
+
+  <div class="g2 ai">
+    <div class="card" style="padding:20px">
+      <div class="ci" style="background:var(--red-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+      <h3 style="color:var(--red)">문제: 메모리는 휘발성</h3>
+      <p>COMMIT 직후 서버가 갑자기 죽으면?<br>Buffer Pool에만 있던 변경 사항은 사라진다.</p>
+    </div>
+    <div class="card" style="padding:20px">
+      <div class="ci" style="background:var(--green-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <h3 style="color:var(--green)">해결: 로그로 보호</h3>
+      <p>변경 내역을 디스크의 로그 파일에 먼저 기록해 두면,<br>장애 후에도 데이터를 복구할 수 있다.</p>
+    </div>
+  </div>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px">ACID와 로그의 관계</h3>
+    <table class="cmp-table">
+      <thead><tr><th>ACID 속성</th><th>보장 수단</th><th>관련 로그</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700;color:var(--amber)">Atomicity</td>
+          <td>트랜잭션은 전부 반영되거나 전부 취소된다</td>
+          <td><span class="badge" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">Undo Log</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--cyan)">Consistency</td>
+          <td>제약 조건 위반 시 롤백으로 되돌린다</td>
+          <td><span class="badge" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">Undo Log</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--green)">Isolation</td>
+          <td>다른 트랜잭션의 미완료 변경을 보지 않는다</td>
+          <td><span class="badge" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">Undo Log (MVCC)</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--red)">Durability</td>
+          <td>COMMIT된 데이터는 장애에도 유지된다</td>
+          <td><span class="badge good">Redo Log (WAL)</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="alert info ai">
+    <strong>핵심</strong><br>Redo Log는 <strong>Durability</strong>를 보장하고, Undo Log는 <strong>Atomicity + Isolation</strong>을 보장한다. 두 로그가 협력해야 완전한 ACID가 완성된다.
+  </div>
+</div>
+</section>
+
+<!-- S2: REDO LOG -->
+<section class="article-section" id="redo-log">
+<div class="section-content">
+  <h2 class="stitle ai">Redo Log — <span class="hl-g">변경 후의 값</span>을 기록한다</h2>
+  <p class="ssub ai">Redo Log는 "이 페이지를 이렇게 바꿨다"는 변경 결과(after-image)를 기록하는 로그다. 장애 후 재실행(Redo)에 사용된다.</p>
+
+  <div class="def-box ai">
+    <strong>WAL (Write-Ahead Logging)</strong><br>데이터 파일을 수정하기 <strong>전에</strong> 반드시 로그를 먼저 디스크에 기록한다. 이 원칙 덕분에 데이터 파일이 깨져도 로그만 있으면 복구가 가능하다.
+  </div>
+
+  <div class="g2 ai">
+    <div class="card" style="padding:18px">
+      <h3 style="color:var(--green);margin-bottom:12px">Redo Log 기록 형식</h3>
+      <div class="log-rec">
+        <span class="log-lsn">LSN 101</span>
+        <span class="log-op begin">BEGIN</span>
+        <span class="log-body"><strong>Tx#42</strong> 트랜잭션 시작</span>
+      </div>
+      <div class="log-rec">
+        <span class="log-lsn">LSN 102</span>
+        <span class="log-op write">WRITE</span>
+        <span class="log-body"><strong>Page 5, Off 120</strong> → name = <strong>'Kim'</strong></span>
+      </div>
+      <div class="log-rec">
+        <span class="log-lsn">LSN 103</span>
+        <span class="log-op write">WRITE</span>
+        <span class="log-body"><strong>Page 8, Off 64</strong> → balance = <strong>3000</strong></span>
+      </div>
+      <div class="log-rec">
+        <span class="log-lsn">LSN 104</span>
+        <span class="log-op commit">COMMIT</span>
+        <span class="log-body"><strong>Tx#42</strong> 커밋 완료</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card" style="padding:18px">
+        <div class="ci" style="background:var(--green-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <h3 style="color:var(--green)">Sequential Write</h3>
+        <p>Redo Log는 항상 끝에 이어서 쓴다(Append-Only). 디스크 Seek 없이 Sequential I/O로 동작하므로 매우 빠르다.</p>
+      </div>
+      <div class="card" style="padding:18px">
+        <div class="ci" style="background:var(--cyan-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <h3 style="color:var(--cyan)">COMMIT = Log Flush</h3>
+        <p>COMMIT 시점에 Redo Log를 디스크에 fsync한다. 데이터 파일 자체는 아직 안 바꿔도 된다. 이것이 WAL의 핵심이다.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px">InnoDB Redo Log 구조</h3>
+    <div class="flow">
+      <div class="fnode redo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        Redo Log Buffer
+        <span style="font-size:10px;opacity:.7">메모리</span>
+      </div>
+      <span class="farr">→ fsync →</span>
+      <div class="fnode redo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        ib_logfile0
+        <span style="font-size:10px;opacity:.7">디스크</span>
+      </div>
+      <span class="farr">→</span>
+      <div class="fnode redo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        ib_logfile1
+        <span style="font-size:10px;opacity:.7">디스크</span>
+      </div>
+      <span class="farr">→ 순환 →</span>
+      <div class="fnode disk">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Checkpoint
+        <span style="font-size:10px;opacity:.7">Data File 반영</span>
+      </div>
+    </div>
+    <p class="body-text" style="text-align:center">Redo Log는 <strong style="color:var(--green)">순환 버퍼(Circular Buffer)</strong> 구조다. Checkpoint가 완료된 영역은 재사용된다.</p>
+  </div>
+
+  <div class="alert warn ai">
+    <strong>주의</strong><br>Redo Log 파일 크기가 너무 작으면 Checkpoint가 자주 발생하여 성능이 떨어진다. 반대로 너무 크면 장애 복구 시간이 길어진다.
+  </div>
+</div>
+</section>
+
+<!-- S3: UNDO LOG -->
+<section class="article-section" id="undo-log">
+<div class="section-content">
+  <h2 class="stitle ai">Undo Log — <span style="color:#c4b5fd;text-shadow:0 0 30px rgba(124,58,237,.3)">변경 전의 값</span>을 기록한다</h2>
+  <p class="ssub ai">Undo Log는 "이 페이지가 원래 이랬다"는 원본 값(before-image)을 기록하는 로그다. 롤백과 MVCC에 사용된다.</p>
+
+  <div class="g2 ai">
+    <div class="card" style="padding:18px">
+      <h3 style="color:#c4b5fd;margin-bottom:12px">Undo Log 기록 형식</h3>
+      <div class="log-rec" style="border-color:rgba(124,58,237,.2)">
+        <span class="log-lsn">Undo#1</span>
+        <span class="log-op" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">INSERT</span>
+        <span class="log-body"><strong>Page 5</strong> → row PK=7 삽입됨 (삭제하면 롤백)</span>
+      </div>
+      <div class="log-rec" style="border-color:rgba(124,58,237,.2)">
+        <span class="log-lsn">Undo#2</span>
+        <span class="log-op" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">UPDATE</span>
+        <span class="log-body"><strong>Page 5, Off 120</strong> ← name = <strong>'Lee'</strong> (원래 값)</span>
+      </div>
+      <div class="log-rec" style="border-color:rgba(124,58,237,.2)">
+        <span class="log-lsn">Undo#3</span>
+        <span class="log-op" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">UPDATE</span>
+        <span class="log-body"><strong>Page 8, Off 64</strong> ← balance = <strong>5000</strong> (원래 값)</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card" style="padding:18px">
+        <div class="ci" style="background:rgba(124,58,237,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></div>
+        <h3 style="color:#c4b5fd">Rollback 지원</h3>
+        <p>ROLLBACK 실행 시 Undo Log를 역순으로 읽어 원래 값으로 되돌린다. Atomicity의 핵심 메커니즘이다.</p>
+      </div>
+      <div class="card" style="padding:18px">
+        <div class="ci" style="background:rgba(124,58,237,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h3 style="color:#c4b5fd">MVCC 지원</h3>
+        <p>다른 트랜잭션이 수정 중인 데이터를 읽을 때, Undo Log에서 해당 시점의 과거 버전을 제공한다.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px">Redo Log와 구조적 차이</h3>
+    <table class="cmp-table">
+      <thead><tr><th>항목</th><th style="color:var(--green)">Redo Log</th><th style="color:#c4b5fd">Undo Log</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700">기록 내용</td>
+          <td>변경 <strong>후</strong>의 값 (after-image)</td>
+          <td>변경 <strong>전</strong>의 값 (before-image)</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">쓰기 방식</td>
+          <td><span class="badge good">Sequential (Append-Only)</span></td>
+          <td>페이지 내 제자리 쓰기</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">저장 위치</td>
+          <td>별도 로그 파일 (ib_logfile)</td>
+          <td>Undo Tablespace (시스템 또는 별도)</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">수명</td>
+          <td>Checkpoint 완료 시 재사용</td>
+          <td>관련 트랜잭션이 모두 종료되면 Purge</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">주 역할</td>
+          <td><span class="badge good">Crash Recovery (재실행)</span></td>
+          <td><span class="badge" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">Rollback + MVCC</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="alert info ai">
+    <strong>기억법</strong><br><strong style="color:var(--green)">Redo</strong> = "다시 하다" → 커밋된 변경을 <strong>재실행</strong>. <strong style="color:#c4b5fd">Undo</strong> = "되돌리다" → 미완료 변경을 <strong>취소</strong>.
+  </div>
+</div>
+</section>
+
+<!-- S4: WRITE FLOW -->
+<section class="article-section" id="write-flow">
+<div class="section-content">
+  <h2 class="stitle ai">트랜잭션 <span class="hl-a">쓰기 흐름</span> 전체 과정</h2>
+  <p class="ssub ai">UPDATE 문 하나가 실행될 때 InnoDB 내부에서 일어나는 일을 순서대로 따라가 보자.</p>
+
+  <div class="step-flow ai">
+    <div class="sf-item s-buf">
+      <div class="sf-num">1</div>
+      <div class="sf-body">
+        <h4>Buffer Pool에서 페이지 읽기</h4>
+        <p>대상 페이지가 Buffer Pool에 없으면 디스크에서 읽어온다. 이후 모든 작업은 메모리에서 수행된다.</p>
+      </div>
+    </div>
+    <div class="sf-item s-undo">
+      <div class="sf-num">2</div>
+      <div class="sf-body">
+        <h4>Undo Log에 원래 값 저장</h4>
+        <p>수정하기 전에 현재 값(before-image)을 Undo Log에 기록한다. 롤백과 MVCC를 위한 보험이다.</p>
+      </div>
+    </div>
+    <div class="sf-item s-buf">
+      <div class="sf-num">3</div>
+      <div class="sf-body">
+        <h4>Buffer Pool 페이지 수정 (Dirty Page)</h4>
+        <p>메모리 상의 페이지를 직접 수정한다. 이 시점에서 페이지는 "Dirty" 상태가 된다.</p>
+      </div>
+    </div>
+    <div class="sf-item s-redo">
+      <div class="sf-num">4</div>
+      <div class="sf-body">
+        <h4>Redo Log Buffer에 변경 기록</h4>
+        <p>변경 후의 값(after-image)을 Redo Log Buffer에 기록한다. 아직 디스크에 쓰지 않은 상태다.</p>
+      </div>
+    </div>
+    <div class="sf-item s-commit">
+      <div class="sf-num">5</div>
+      <div class="sf-body">
+        <h4>COMMIT → Redo Log Flush (fsync)</h4>
+        <p>Redo Log Buffer를 디스크의 Redo Log 파일에 강제 기록한다. <strong>이 시점에서 트랜잭션의 Durability가 보장된다.</strong></p>
+      </div>
+    </div>
+    <div class="sf-item" style="opacity:.7">
+      <div class="sf-num" style="border-color:var(--text-dim)">6</div>
+      <div class="sf-body">
+        <h4 style="color:var(--text-dim)">나중에: Checkpoint가 Dirty Page를 Data File에 반영</h4>
+        <p>Background 스레드가 주기적으로 Dirty Page를 디스크의 데이터 파일에 쓴다. COMMIT과는 비동기적으로 수행된다.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert safe ai" style="margin-top:14px">
+    <strong>핵심 포인트</strong><br>COMMIT은 <strong>데이터 파일을 바꾸는 게 아니라</strong> Redo Log를 디스크에 쓰는 것이다. 실제 데이터 파일 반영은 Checkpoint가 나중에 처리한다. 이것이 WAL의 본질이다.
+  </div>
+</div>
+</section>
+
+<!-- S5: CRASH RECOVERY -->
+<section class="article-section" id="recovery">
+<div class="section-content">
+  <h2 class="stitle ai">장애 복구: <span class="hl">Redo</span> 그리고 <span style="color:#c4b5fd;text-shadow:0 0 30px rgba(124,58,237,.3)">Undo</span></h2>
+  <p class="ssub ai">서버가 갑자기 죽었을 때, 두 로그를 사용해 정확히 커밋된 상태로 되돌리는 과정이다.</p>
+
+  <div class="g2 ai">
+    <div class="crash-box">
+      <h4>
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        장애 시점의 상태
+      </h4>
+      <p class="body-text">
+        <strong style="color:var(--green)">Tx#1 — COMMIT 완료:</strong> Redo Log에 기록됨, 하지만 Data File에는 미반영<br>
+        <strong style="color:var(--red)">Tx#2 — 진행 중:</strong> Buffer Pool에 수정 있음, COMMIT 전에 장애 발생<br>
+        <strong style="color:var(--amber)">Tx#3 — COMMIT 완료:</strong> Redo Log 기록됨, Data File에도 이미 반영됨
+      </p>
+    </div>
+    <div class="card" style="padding:18px">
+      <h3 style="margin-bottom:10px;color:var(--cyan)">복구 목표</h3>
+      <p class="body-text">
+        <strong style="color:var(--green)">Tx#1:</strong> COMMIT됐으니 변경을 <strong>재실행(Redo)</strong><br>
+        <strong style="color:var(--red)">Tx#2:</strong> COMMIT 안 됐으니 변경을 <strong>취소(Undo)</strong><br>
+        <strong style="color:var(--amber)">Tx#3:</strong> 이미 반영됐으니 <strong>아무것도 안 함</strong>
+      </p>
+    </div>
+  </div>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:14px">복구 과정 (2단계)</h3>
+    <div class="g2">
+      <div style="padding:0">
+        <div class="alert safe" style="margin-bottom:10px">
+          <strong>Phase 1: Redo (Roll Forward)</strong>
+        </div>
+        <div class="timeline">
+          <div class="tl-item redo-phase">
+            <h4>마지막 Checkpoint 찾기</h4>
+            <p>Redo Log에서 마지막 Checkpoint LSN을 확인한다.</p>
+          </div>
+          <div class="tl-item redo-phase">
+            <h4>Checkpoint 이후 로그 전부 재실행</h4>
+            <p>커밋 여부와 관계없이 <strong>모든 변경</strong>을 순서대로 다시 적용한다.</p>
+          </div>
+          <div class="tl-item redo-phase">
+            <h4>Buffer Pool 상태 복원 완료</h4>
+            <p>장애 직전의 메모리 상태가 그대로 복원된다.</p>
+          </div>
+        </div>
+      </div>
+      <div style="padding:0">
+        <div class="alert" style="margin-bottom:10px;background:rgba(124,58,237,.1);border-color:rgba(124,58,237,.3)">
+          <strong style="color:#c4b5fd">Phase 2: Undo (Roll Back)</strong>
+        </div>
+        <div class="timeline">
+          <div class="tl-item undo-phase">
+            <h4>미완료 트랜잭션 식별</h4>
+            <p>COMMIT 레코드가 없는 트랜잭션을 찾는다.</p>
+          </div>
+          <div class="tl-item undo-phase">
+            <h4>Undo Log로 변경 취소</h4>
+            <p>미완료 트랜잭션의 변경 사항을 역순으로 되돌린다.</p>
+          </div>
+          <div class="tl-item undo-phase">
+            <h4>일관된 상태 도달</h4>
+            <p>COMMIT된 것만 남고, 미완료는 모두 사라진다.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="quote-box ai">
+    <strong>"Redo는 있어야 할 것을 되살리고, Undo는 없어야 할 것을 지운다."</strong><br>
+    이 두 단계를 거치면 DB는 장애 직전에 커밋된 정확한 상태로 돌아간다.
+  </div>
+</div>
+</section>
+
+<!-- S6: MVCC -->
+<section class="article-section" id="mvcc">
+<div class="section-content">
+  <h2 class="stitle ai">Undo Log와 <span class="hl-c">MVCC</span></h2>
+  <p class="ssub ai">MVCC(Multi-Version Concurrency Control)는 읽기 트랜잭션이 쓰기 트랜잭션을 기다리지 않게 해준다. 그 비밀은 Undo Log의 버전 체인이다.</p>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:14px">버전 체인 (Undo Log Chain)</h3>
+    <p class="body-text" style="margin-bottom:14px">하나의 행이 여러 트랜잭션에 의해 수정되면, Undo Log에 이전 버전들이 체인으로 연결된다.</p>
+    <div class="vchain">
+      <div class="vnode current">
+        <strong>현재 값</strong>
+        name = 'Park'<br>
+        <span style="font-size:10px;color:var(--text-dim)">Tx#50 수정</span>
+      </div>
+      <span class="varr">← undo</span>
+      <div class="vnode old">
+        <strong>이전 버전</strong>
+        name = 'Kim'<br>
+        <span style="font-size:10px;color:var(--text-dim)">Tx#45 수정</span>
+      </div>
+      <span class="varr">← undo</span>
+      <div class="vnode oldest">
+        <strong>최초 버전</strong>
+        name = 'Lee'<br>
+        <span style="font-size:10px;color:var(--text-dim)">Tx#30 생성</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2 ai">
+    <div class="card" style="padding:18px">
+      <h3 style="color:var(--cyan);margin-bottom:10px">읽기 트랜잭션의 동작</h3>
+      <div class="step-flow">
+        <div class="sf-item" style="padding:10px 14px">
+          <div class="sf-num" style="width:24px;min-height:24px;font-size:11px">1</div>
+          <div class="sf-body">
+            <p style="margin:0">트랜잭션 시작 시 <strong>Read View(스냅샷)</strong>를 생성한다</p>
+          </div>
+        </div>
+        <div class="sf-item" style="padding:10px 14px">
+          <div class="sf-num" style="width:24px;min-height:24px;font-size:11px">2</div>
+          <div class="sf-body">
+            <p style="margin:0">행의 현재 버전이 내 Read View보다 새로우면 <strong>건너뜀</strong></p>
+          </div>
+        </div>
+        <div class="sf-item" style="padding:10px 14px">
+          <div class="sf-num" style="width:24px;min-height:24px;font-size:11px">3</div>
+          <div class="sf-body">
+            <p style="margin:0">Undo Log 체인을 따라가며 <strong>내 시점의 버전</strong>을 찾는다</p>
+          </div>
+        </div>
+        <div class="sf-item" style="padding:10px 14px">
+          <div class="sf-num" style="width:24px;min-height:24px;font-size:11px">4</div>
+          <div class="sf-body">
+            <p style="margin:0">잠금 없이 <strong>일관된 읽기(Consistent Read)</strong> 완료</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="alert info">
+        <strong>REPEATABLE READ</strong><br>트랜잭션 <strong>시작 시점</strong>의 스냅샷을 계속 사용한다. 같은 쿼리를 여러 번 실행해도 동일한 결과를 보장한다.
+      </div>
+      <div class="alert warn">
+        <strong>READ COMMITTED</strong><br><strong>각 쿼리 실행 시점</strong>마다 새 스냅샷을 생성한다. 같은 트랜잭션 내에서도 다른 결과가 나올 수 있다.
+      </div>
+      <div class="alert" style="background:rgba(124,58,237,.1);border-color:rgba(124,58,237,.3)">
+        <strong style="color:#c4b5fd">Purge Thread:</strong> 어떤 트랜잭션도 더 이상 참조하지 않는 오래된 Undo Log 버전은 Purge Thread가 정리한다.
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S7: PRACTICE -->
+<section class="article-section" id="practice">
+<div class="section-content">
+  <h2 class="stitle ai">InnoDB <span class="hl-g">실무 가이드</span></h2>
+  <p class="ssub ai">Redo Log와 Undo Log 관련 핵심 설정과 모니터링 포인트를 정리한다.</p>
+
+  <div class="g2 ai">
+    <div class="card" style="padding:18px">
+      <h3 style="color:var(--green);margin-bottom:12px">Redo Log 설정</h3>
+      <div class="code-block" style="margin-bottom:10px">
+        <pre><span class="cm"># Redo Log 전체 크기 (MySQL 8.0.30+)</span>
+<span class="kw">innodb_redo_log_capacity</span> = <span class="str">2G</span>
+
+<span class="cm"># fsync 전략</span>
+<span class="kw">innodb_flush_log_at_trx_commit</span> = <span class="str">1</span>
+<span class="cm"># 1: 매 COMMIT마다 fsync (안전)</span>
+<span class="cm"># 2: OS 캐시까지만 (빠름, 약간 위험)</span>
+<span class="cm"># 0: 1초마다 flush (가장 빠름, 위험)</span></pre>
+      </div>
+      <p class="body-text">
+        <strong style="color:var(--green)">권장:</strong> 데이터 무결성이 중요하면 반드시 <strong>1</strong>을 사용한다. 2나 0은 최대 1초 분량의 트랜잭션을 잃을 수 있다.
+      </p>
+    </div>
+    <div class="card" style="padding:18px">
+      <h3 style="color:#c4b5fd;margin-bottom:12px">Undo Log 설정</h3>
+      <div class="code-block" style="margin-bottom:10px">
+        <pre><span class="cm"># Undo Tablespace 자동 생성 (8.0+)</span>
+<span class="kw">innodb_undo_tablespaces</span> = <span class="str">2</span>
+
+<span class="cm"># Undo Log 최대 크기</span>
+<span class="kw">innodb_max_undo_log_size</span> = <span class="str">1G</span>
+
+<span class="cm"># 자동 Truncate 활성화</span>
+<span class="kw">innodb_undo_log_truncate</span> = <span class="str">ON</span></pre>
+      </div>
+      <p class="body-text">
+        <strong style="color:#c4b5fd">주의:</strong> 장시간 트랜잭션은 Undo Log가 정리되지 못하게 하여 디스크를 가득 채울 수 있다.
+      </p>
+    </div>
+  </div>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px">모니터링 쿼리</h3>
+    <div class="code-block">
+      <pre><span class="cm">-- Redo Log 상태 확인</span>
+<span class="kw">SHOW ENGINE</span> INNODB <span class="kw">STATUS</span>\G
+<span class="cm">-- LOG 섹션에서 LSN, Checkpoint 위치 확인</span>
+<span class="cm">-- Log sequence number: 현재 LSN</span>
+<span class="cm">-- Last checkpoint at: 마지막 체크포인트 LSN</span>
+<span class="cm">-- 차이가 크면 Checkpoint가 밀리고 있는 것</span>
+
+<span class="cm">-- Undo Log (History List Length) 확인</span>
+<span class="kw">SHOW ENGINE</span> INNODB <span class="kw">STATUS</span>\G
+<span class="cm">-- TRANSACTIONS 섹션의 History list length</span>
+<span class="cm">-- 이 값이 계속 증가하면 Purge가 밀리고 있는 것</span>
+
+<span class="cm">-- 장시간 트랜잭션 찾기</span>
+<span class="kw">SELECT</span> trx_id, trx_state, trx_started,
+       TIMESTAMPDIFF(SECOND, trx_started, NOW()) <span class="kw">AS</span> duration_sec
+<span class="kw">FROM</span> information_schema.innodb_trx
+<span class="kw">ORDER BY</span> trx_started <span class="kw">ASC</span>;</pre>
+    </div>
+  </div>
+
+  <div class="g3 ai">
+    <div class="pcard">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        장시간 트랜잭션
+      </h3>
+      <p>열어놓고 안 닫는 트랜잭션은 Undo Log Purge를 막아 디스크 폭증을 유발한다. History List Length를 모니터링하라.</p>
+    </div>
+    <div class="pcard">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Redo Log 크기 부족
+      </h3>
+      <p>Redo Log가 작으면 급격한 Checkpoint(Async/Sync Flush)가 발생해 순간적으로 쓰기가 멈출 수 있다.</p>
+    </div>
+    <div class="pcard">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        flush_log 설정 변경
+      </h3>
+      <p>성능을 위해 innodb_flush_log_at_trx_commit을 0이나 2로 바꾸면, 장애 시 커밋된 데이터를 잃을 수 있다.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S8: SUMMARY -->
+<section class="article-section" id="summary">
+<div class="section-content">
+  <h2 class="stitle ai"><span class="hl-g">최종 정리</span></h2>
+
+  <div class="g2 ai">
+    <div class="vs-card redo-c">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Redo Log
+      </h3>
+      <div class="vs-item"><span><strong style="color:var(--text)">변경 후의 값</strong>(after-image)을 기록한다</span></div>
+      <div class="vs-item"><span>WAL 원칙에 따라 <strong style="color:var(--text)">데이터보다 먼저</strong> 디스크에 쓴다</span></div>
+      <div class="vs-item"><span><strong style="color:var(--text)">Sequential Write</strong>로 성능이 뛰어나다</span></div>
+      <div class="vs-item"><span>COMMIT = Redo Log를 <strong style="color:var(--text)">fsync</strong>하는 것이다</span></div>
+      <div class="vs-item"><span>장애 복구 시 커밋된 트랜잭션을 <strong style="color:var(--text)">재실행</strong>한다</span></div>
+    </div>
+    <div class="vs-card undo-c">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        Undo Log
+      </h3>
+      <div class="vs-item"><span><strong style="color:var(--text)">변경 전의 값</strong>(before-image)을 기록한다</span></div>
+      <div class="vs-item"><span>ROLLBACK 시 원래 값으로 <strong style="color:var(--text)">되돌린다</strong></span></div>
+      <div class="vs-item"><span>버전 체인으로 <strong style="color:var(--text)">MVCC</strong>를 지원한다</span></div>
+      <div class="vs-item"><span>Purge Thread가 불필요한 버전을 <strong style="color:var(--text)">정리</strong>한다</span></div>
+      <div class="vs-item"><span>장애 복구 시 미완료 트랜잭션을 <strong style="color:var(--text)">취소</strong>한다</span></div>
+    </div>
+  </div>
+
+  <div class="ai">
+    <table class="cmp-table">
+      <thead><tr><th>관점</th><th style="color:var(--green)">Redo Log</th><th style="color:#c4b5fd">Undo Log</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700">한마디 정의</td>
+          <td>"이렇게 바꿨다" (after-image)</td>
+          <td>"원래 이랬다" (before-image)</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">ACID 역할</td>
+          <td><span class="badge good">Durability</span></td>
+          <td><span class="badge" style="color:#c4b5fd;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3)">Atomicity + Isolation</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">장애 복구</td>
+          <td>커밋된 변경을 재실행 (Roll Forward)</td>
+          <td>미완료 변경을 취소 (Roll Back)</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">쓰기 방식</td>
+          <td><span class="badge good">Sequential (Append)</span></td>
+          <td>페이지 내 제자리 쓰기</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">정리 시점</td>
+          <td>Checkpoint 완료 후 재사용</td>
+          <td>모든 참조 트랜잭션 종료 후 Purge</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">실무 주의</td>
+          <td>크기 부족 → Checkpoint 폭주</td>
+          <td>장시간 Tx → Purge 지연, 디스크 폭증</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="quote-box ai" style="border-left-color:var(--green)">
+    <strong style="color:var(--green)">"DB는 메모리에서 일하고, 로그로 보증한다."</strong><br>
+    Redo Log가 커밋의 내구성을 보장하고, Undo Log가 롤백과 동시성을 보장한다. 이 두 로그의 협력이 트랜잭션의 ACID를 완성한다.
+  </div>
+
+  <div class="sum-banner ai">
+    <h3>KEY TAKEAWAY</h3>
+    <p>COMMIT은 데이터 파일을 바꾸는 게 아니라 <strong style="color:var(--green)">Redo Log를 디스크에 쓰는 것</strong>이다.<br>
+    ROLLBACK은 Redo Log를 되감는 게 아니라 <strong style="color:#c4b5fd">Undo Log에서 원래 값을 복원하는 것</strong>이다.<br>
+    이 구분을 이해하면 DB 내부 동작의 절반이 보인다.</p>
+  </div>
+</div>
+</section>
+
+</BlogLayout>
+
+<style is:global>
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 25% 15%,rgba(124,58,237,.06) 0%,transparent 50%),radial-gradient(ellipse at 75% 85%,rgba(0,212,255,.05) 0%,transparent 50%);pointer-events:none;z-index:0}
+
+/* ── LOG RECORD ── */
+.log-rec{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;display:flex;align-items:center;gap:10px;margin-bottom:6px;transition:all .3s;font-size:12px}
+.log-rec:hover{border-color:var(--border-glow);transform:translateX(4px)}
+.log-lsn{font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--text-dim);min-width:56px;flex-shrink:0}
+.log-op{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.3px;flex-shrink:0}
+.log-op.write{color:var(--green);background:var(--green-pale);border:1px solid var(--green-dim)}
+.log-op.commit{color:var(--cyan);background:var(--cyan-pale);border:1px solid var(--cyan-dim)}
+.log-op.begin{color:var(--amber);background:var(--amber-pale);border:1px solid var(--amber-dim)}
+.log-body{font-family:var(--font-mono);font-size:11px;color:var(--text-sec);flex:1}
+.log-body strong{color:var(--text)}
+
+/* ── FLOW NODE ── */
+.flow{display:flex;align-items:center;justify-content:center;gap:6px;margin:16px 0;flex-wrap:wrap}
+.fnode{min-width:90px;min-height:64px;padding:12px 14px;border-radius:var(--r-md);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:600;gap:4px;border:1px solid var(--border);background:var(--surface);text-align:center;transition:all .3s}
+.fnode svg{width:22px;height:22px}
+.fnode.redo{border-color:var(--green-dim);color:var(--green);background:var(--green-pale)}
+.fnode.undo{border-color:rgba(124,58,237,.3);color:#c4b5fd;background:rgba(124,58,237,.12)}
+.fnode.buf{border-color:var(--cyan-dim);color:var(--cyan);background:var(--cyan-pale)}
+.fnode.disk{border-color:var(--amber-dim);color:var(--amber);background:var(--amber-pale)}
+.fnode.tx{border-color:var(--red-dim);color:var(--red);background:var(--red-pale)}
+.farr{font-family:var(--font-mono);font-size:13px;color:var(--text-dim);font-weight:700;flex-shrink:0}
+
+/* ── TIMELINE ── */
+.timeline{position:relative;padding-left:28px;margin:14px 0}
+.timeline::before{content:'';position:absolute;left:10px;top:0;bottom:0;width:2px;background:linear-gradient(to bottom,var(--cyan),var(--green),rgba(124,58,237,.6));border-radius:1px}
+.tl-item{position:relative;margin-bottom:14px}
+.tl-item::before{content:'';position:absolute;left:-22px;top:8px;width:10px;height:10px;border-radius:50%;background:var(--cyan);border:2px solid var(--bg);box-shadow:0 0 8px rgba(0,212,255,.4)}
+.tl-item.redo-phase::before{background:var(--green);box-shadow:0 0 8px rgba(0,255,136,.4)}
+.tl-item.undo-phase::before{background:#a78bfa;box-shadow:0 0 8px rgba(124,58,237,.4)}
+.tl-item h4{font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px}
+.tl-item p{font-size:15px;color:var(--text-sec);line-height:1.7}
+
+/* ── VERSION CHAIN ── */
+.vchain{display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:center;margin:14px 0}
+.vnode{min-width:100px;padding:10px 14px;border-radius:var(--r-md);text-align:center;font-size:11px;line-height:1.6;border:1px solid var(--border);background:var(--surface);transition:all .3s}
+.vnode.current{border-color:var(--cyan-dim);background:var(--cyan-pale)}
+.vnode.old{border-color:rgba(124,58,237,.3);background:rgba(124,58,237,.1);opacity:.8}
+.vnode.oldest{border-color:var(--border);opacity:.5}
+.vnode strong{display:block;font-weight:700;margin-bottom:2px}
+.vnode.current strong{color:var(--cyan)}
+.vnode.old strong{color:#c4b5fd}
+.varr{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);font-weight:700}
+
+/* ── STEP NUMBER ── */
+.step-flow{display:flex;flex-direction:column;gap:10px}
+.sf-item{display:flex;align-items:flex-start;gap:14px;padding:14px 18px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);transition:all .3s}
+.sf-item:hover{border-color:var(--border-glow);transform:translateX(4px)}
+.sf-num{width:32px;min-height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:14px;font-weight:800;flex-shrink:0;border:2px solid var(--border);color:var(--text-dim)}
+.sf-item.s-undo .sf-num{border-color:rgba(124,58,237,.4);color:#c4b5fd}
+.sf-item.s-redo .sf-num{border-color:var(--green-dim);color:var(--green)}
+.sf-item.s-buf .sf-num{border-color:var(--cyan-dim);color:var(--cyan)}
+.sf-item.s-commit .sf-num{border-color:var(--amber-dim);color:var(--amber)}
+.sf-body h4{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px}
+.sf-body p{font-size:15px;color:var(--text-sec);line-height:1.7}
+
+/* ── CRASH SCENARIO ── */
+.crash-box{background:var(--bg-card);border:1px solid var(--red-dim);border-radius:var(--r-lg);padding:18px;position:relative;overflow:hidden}
+.crash-box::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--red)}
+.crash-box h4{font-size:13px;font-weight:700;color:var(--red);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.crash-box h4 svg{width:16px;height:16px;flex-shrink:0}
+
+/* ── COMPARE CARD ── */
+.vs-card{background:var(--bg-card);border-radius:var(--r-lg);padding:20px;border:1px solid var(--border)}
+.vs-card h3{font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.vs-card h3 svg{width:18px;height:18px}
+.vs-item{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:15px;color:var(--text-sec);line-height:1.7}
+.vs-item::before{content:'';width:5px;height:5px;border-radius:50%;margin-top:7px;flex-shrink:0}
+.vs-card.redo-c .vs-item::before{background:var(--green)}
+.vs-card.redo-c h3{color:var(--green)}
+.vs-card.undo-c .vs-item::before{background:#c4b5fd}
+.vs-card.undo-c h3{color:#c4b5fd}
+
+/* ── QUOTE BOX ── */
+.quote-box{background:var(--bg-card);border-left:3px solid var(--cyan);border-radius:0 var(--r-lg) var(--r-lg) 0;padding:18px 22px;margin:18px 0;font-size:14px;color:var(--text-sec);line-height:1.9;font-style:italic}
+.quote-box strong{color:var(--cyan);font-style:normal}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){.g2,.g3,.g4{grid-template-columns:1fr}.flow{flex-direction:column;align-items:center}.fnode{min-width:80px}.vchain{flex-direction:column;align-items:center}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>

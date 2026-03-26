@@ -1,0 +1,96 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Header from '../components/Header.astro';
+import TableOfContents from '../components/TableOfContents.astro';
+
+interface Section {
+  id: string;
+  title: string;
+}
+
+interface Props {
+  title: string;
+  sections: Section[];
+  category?: string;
+  description?: string;
+}
+
+const { title, sections, category, description } = Astro.props;
+---
+
+<BaseLayout title={title} description={description}>
+  <Header activeCategory={category} />
+
+  <div class="blog-wrapper">
+    <main class="blog-main">
+      <slot />
+    </main>
+    <TableOfContents sections={sections} />
+  </div>
+</BaseLayout>
+
+<style is:global>
+  .blog-wrapper {
+    position: relative;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 72px 24px 60px;
+  }
+  .blog-main {
+    width: 100%;
+  }
+
+  /* ── Article Section (replaces slide) ── */
+  .article-section {
+    padding: 40px 0;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .article-section:last-child {
+    border-bottom: none;
+  }
+  .article-section .section-content {
+    max-width: 800px;
+  }
+
+  /* ── Article Hero (replaces hero slide) ── */
+  .article-hero {
+    text-align: center;
+    padding: 48px 0 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+  .article-hero .hero-beacon {
+    width: 72px;
+    min-height: 72px;
+    margin-bottom: 24px;
+  }
+  .article-hero .hero-beacon svg {
+    width: 32px;
+    height: 32px;
+  }
+  .article-hero .htitle {
+    font-size: clamp(32px, 5vw, 56px);
+    margin-bottom: 12px;
+  }
+  .article-hero .hdesc {
+    margin-bottom: 0;
+  }
+
+  .ai + .ai {
+    margin-top: 14px;
+  }
+
+  @media (max-width: 768px) {
+    .blog-wrapper {
+      padding: 60px 16px 40px;
+    }
+    .article-section {
+      padding: 28px 0;
+    }
+    .article-hero {
+      padding: 32px 0 28px;
+    }
+  }
+</style>
+

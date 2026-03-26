@@ -1,0 +1,266 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import { categories } from '../data/categories';
+---
+
+<BaseLayout title="Home">
+  <Header />
+  <div class="landing">
+    <header class="hero">
+      <div class="hero-inner">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            <line x1="8" y1="7" x2="16" y2="7"/>
+            <line x1="8" y1="11" x2="14" y2="11"/>
+          </svg>
+        </div>
+        <h1 class="brand">DEV <span>LYCEUM</span></h1>
+        <p class="brand-sub">Software Knowledge Archive</p>
+        <p class="brand-desc">백엔드 개발자를 위한 기술 강의자료 모음.<br>JVM, Spring, JPA, Database, Redis, Kafka, System Design의 핵심 개념을 시각적으로 정리합니다.</p>
+      </div>
+    </header>
+
+    <main class="categories">
+      {categories.map((cat) => (
+        <section class:list={['cat-section', cat.accentColor && `cat-${cat.accentColor}`]}>
+          <div class="cat-header">
+            <a href={cat.href} class="cat-title-link">
+              <h2>{cat.name}</h2>
+            </a>
+          </div>
+          {cat.lectures.length > 0 ? (
+            <div class="cat-grid">
+              {cat.lectures.map((lec) => (
+                <a href={lec.href} class="lec-card">
+                  <h3>{lec.title}</h3>
+                  <p>{lec.subtitle}</p>
+                  <span class="lec-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  </span>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p class="cat-empty">강의가 곧 추가됩니다.</p>
+          )}
+        </section>
+      ))}
+    </main>
+
+    <footer class="landing-footer">
+      <p>Dev Lyceum — Built for learning, designed for clarity.</p>
+    </footer>
+  </div>
+</BaseLayout>
+
+<style>
+  .landing {
+    min-height: 100vh;
+    overflow-y: auto;
+    padding-top: 56px;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 50vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 60px 24px 40px;
+    position: relative;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+  .hero-inner {
+    max-width: 640px;
+  }
+  .brand-icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 24px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--cyan) 0%, rgba(0,212,255,.25) 40%, transparent 70%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse 3s ease-in-out infinite;
+  }
+  .brand-icon svg {
+    width: 32px;
+    height: 32px;
+    color: #fff;
+    filter: drop-shadow(0 0 6px rgba(255,255,255,.4));
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 30px rgba(0,212,255,.3); transform: scale(1); }
+    50% { box-shadow: 0 0 60px rgba(0,212,255,.5); transform: scale(1.04); }
+  }
+  .brand {
+    font-family: var(--font-display);
+    font-size: clamp(42px, 8vw, 72px);
+    font-weight: 900;
+    letter-spacing: -2px;
+    line-height: 1;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .brand span {
+    background: linear-gradient(135deg, var(--cyan), var(--green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .brand-sub {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .brand-desc {
+    font-size: 15px;
+    color: var(--text-sec);
+    line-height: 1.9;
+  }
+
+  /* ── CATEGORIES ── */
+  .categories {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .cat-section {
+    padding: 28px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .cat-section:last-child {
+    border-bottom: none;
+  }
+
+  .cat-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .cat-title-link {
+    text-decoration: none;
+  }
+  .cat-title-link h2 {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    transition: opacity 0.2s;
+  }
+  .cat-title-link:hover h2 {
+    opacity: 0.7;
+  }
+  .cat-empty {
+    font-size: 13px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  .cat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+
+  /* ── LECTURE CARD ── */
+  .lec-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    text-decoration: none;
+    transition: all .3s;
+    position: relative;
+    overflow: hidden;
+    display: block;
+  }
+  .lec-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--border);
+    transition: background .3s;
+  }
+  .lec-card:hover {
+    border-color: var(--border-glow);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  }
+  .lec-card:hover::before {
+    background: var(--text);
+  }
+  .cat-purple .cat-title-link h2 {
+    color: var(--purple);
+  }
+  .cat-purple .lec-card:hover::before {
+    background: var(--purple);
+  }
+  .lec-card h3 {
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .lec-card p {
+    font-size: 12px;
+    color: var(--text-sec);
+    line-height: 1.7;
+  }
+  .lec-arrow {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: all .3s;
+    color: var(--text-dim);
+  }
+  .lec-arrow svg {
+    width: 16px;
+    height: 16px;
+  }
+  .lec-card:hover .lec-arrow {
+    opacity: 1;
+    transform: translateY(-50%) translateX(4px);
+  }
+
+  /* ── FOOTER ── */
+  .landing-footer {
+    text-align: center;
+    padding: 32px 24px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  @media (max-width: 768px) {
+    .cat-grid { grid-template-columns: 1fr; }
+    .hero { min-height: 40vh; padding: 40px 20px 30px; }
+  }
+</style>

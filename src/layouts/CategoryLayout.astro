@@ -1,0 +1,174 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Header from '../components/Header.astro';
+import type { Lecture } from '../data/categories';
+
+interface Props {
+  title: string;
+  subtitle?: string;
+  categoryKey: string;
+  accentColor: string;
+  lectures: Lecture[];
+}
+
+const { title, subtitle, categoryKey, accentColor, lectures } = Astro.props;
+const colorVar = `var(--${accentColor})`;
+const colorDimVar = `var(--${accentColor}-dim)`;
+const colorPaleVar = `var(--${accentColor}-pale)`;
+---
+
+<BaseLayout title={title}>
+  <Header activeCategory={categoryKey} />
+
+  <main class="page-main">
+    <div class="page-inner">
+      <div class="page-heading">
+        <div class="page-icon" style={`background:${colorPaleVar};border-color:${colorDimVar};color:${colorVar}`}>
+          <slot name="icon" />
+        </div>
+        <div>
+          <h1 class="page-title" style={`color:${colorVar}`}>{title}</h1>
+          {subtitle && <p class="page-sub">{subtitle}</p>}
+        </div>
+      </div>
+
+      {lectures.length > 0 ? (
+        <div class="lec-grid">
+          {lectures.map((lec) => (
+            <a href={lec.href} class="lec-card" style={`--cat-accent:${colorVar}`}>
+              <h2>{lec.title}</h2>
+              <p>{lec.subtitle}</p>
+              <span class="lec-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </span>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p class="cat-empty">강의가 곧 추가됩니다.</p>
+      )}
+    </div>
+  </main>
+</BaseLayout>
+
+<style>
+  .page-main {
+    padding-top: 80px;
+    min-height: 100vh;
+  }
+  .page-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 60px;
+  }
+  .page-heading {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    border: 1px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .page-icon :global(svg) {
+    width: 24px;
+    height: 24px;
+  }
+  .page-title {
+    font-family: var(--font-body);
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+  .page-sub {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--text-sec);
+    margin-top: 4px;
+  }
+  .cat-empty {
+    font-size: 13px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+  .lec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .lec-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 22px;
+    text-decoration: none;
+    transition: border-color .3s, transform .3s, box-shadow .3s;
+    position: relative;
+    overflow: hidden;
+    display: block;
+  }
+  .lec-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--border);
+    transition: background .3s;
+  }
+  .lec-card:hover {
+    border-color: var(--border-glow);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  }
+  .lec-card:hover::before {
+    background: var(--cat-accent);
+  }
+  .lec-card h2 {
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+    padding-right: 28px;
+  }
+  .lec-card p {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--text-sec);
+    line-height: 1.7;
+  }
+  .lec-arrow {
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity .3s, transform .3s;
+    color: var(--text-dim);
+  }
+  .lec-arrow svg {
+    width: 16px;
+    height: 16px;
+  }
+  .lec-card:hover .lec-arrow {
+    opacity: 1;
+    transform: translateY(-50%) translateX(4px);
+  }
+  @media (max-width: 640px) {
+    .lec-grid { grid-template-columns: 1fr; }
+    .page-heading { flex-wrap: wrap; }
+  }
+</style>

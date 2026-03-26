@@ -1,0 +1,764 @@
+---
+import BlogLayout from '../../layouts/BlogLayout.astro';
+const sections = [
+  { id: 'intro', title: 'Intro' },
+  { id: 'problem', title: 'Problem' },
+  { id: 'ttl', title: 'TTL' },
+  { id: 'pubsub', title: 'Pub/Sub' },
+  { id: 'code', title: 'Code' },
+  { id: 'streams', title: 'Streams' },
+  { id: 'library', title: 'Library' },
+  { id: 'compare', title: 'Compare' },
+  { id: 'summary', title: 'Summary' },
+];
+---
+
+<BlogLayout title="캐시 동기화" sections={sections} category="cache">
+<!-- S0: HERO -->
+<section class="article-hero article-section" id="intro">
+<div class="hero-c">
+  <div class="hero-beacon ai">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="23 4 23 10 17 10"/>
+      <polyline points="1 20 1 14 7 14"/>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </svg>
+  </div>
+  <h1 class="htitle ai">캐시<br><span class="gr">동기화</span></h1>
+  <p class="hdesc ai">로컬 캐시와 리모트 캐시,<br>어떻게 일관성을 유지할 것인가</p>
+</div>
+</section>
+
+<!-- S1: 왜 동기화가 문제인가 -->
+<section class="article-section" id="problem">
+<div class="section-content">
+  <h2 class="stitle ai">왜 동기화가 <span class="hl">문제인가</span></h2>
+  <p class="ssub ai">리모트 캐시(Redis)는 모든 서버가 공유하지만, 로컬 캐시(Caffeine)는 각 서버의 JVM 메모리에 독립적으로 존재한다.</p>
+
+  <div class="sync-demo ai">
+    <div class="sync-title" id="syncTitle">T0: 초기 상태 — 모든 캐시 일치</div>
+    <div class="sync-servers" id="syncServers">
+      <div class="sync-srv synced" id="srvA">
+        <h4>서버 A</h4>
+        <div class="srv-lbl">Caffeine</div>
+        <div class="val" id="valA">age: 27</div>
+      </div>
+      <div class="sync-srv synced" id="srvB">
+        <h4>서버 B</h4>
+        <div class="srv-lbl">Caffeine</div>
+        <div class="val" id="valB">age: 27</div>
+      </div>
+      <div class="sync-srv synced" id="srvC">
+        <h4>서버 C</h4>
+        <div class="srv-lbl">Caffeine</div>
+        <div class="val" id="valC">age: 27</div>
+      </div>
+    </div>
+    <div class="sync-redis">
+      <h4>Redis (리모트 캐시)</h4>
+      <div class="val" id="valRedis">age: 27</div>
+    </div>
+    <div class="sync-btns">
+      <button class="sync-btn primary" onclick="runSyncDemo()">서버 A에서 나이 수정</button>
+      <button class="sync-btn" onclick="resetSyncDemo()">초기화</button>
+    </div>
+    <div class="sync-msg" id="syncMsg"></div>
+  </div>
+
+  <div class="def-box ai">이것이 바로 <strong>로컬 캐시 동기화 문제</strong>의 핵심이다. 분산 환경에서 같은 데이터의 복사본이 여러 곳에 존재할 때, 이들을 어떻게 일관되게 유지할 것인가 — 결국 <strong>정합성(Consistency)</strong> 문제다.</div>
+</div>
+</section>
+
+<!-- S2: TTL 기반 전략 -->
+<section class="article-section" id="ttl">
+<div class="section-content">
+  <h2 class="stitle ai">전략 1: <span class="hl-a">TTL 기반</span></h2>
+  <p class="ssub ai">가장 간단한 접근은 "동기화하지 않는다"이다. 대신 로컬 캐시의 TTL을 매우 짧게 설정한다.</p>
+
+  <div class="g2 ai">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <h3 style="color:var(--cyan)">동작 방식</h3>
+        <div class="tl-items" style="margin-top:12px">
+          <div class="tl-item">
+            <div class="tl-dot-col"><div class="tl-dot" style="background:var(--cyan)">T0</div><div class="tl-line"></div></div>
+            <div class="tl-content"><h4 style="color:var(--cyan)">초기 캐싱</h4><p>모든 서버가 age=27을 로컬 캐시에 저장</p></div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot-col"><div class="tl-dot" style="background:var(--amber)">T1</div><div class="tl-line"></div></div>
+            <div class="tl-content"><h4 style="color:var(--amber)">데이터 수정</h4><p>서버 A에서 age=28로 수정, Redis 갱신<br>서버 B, C는 여전히 age=27 (stale)</p></div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot-col"><div class="tl-dot" style="background:var(--red)">T10</div><div class="tl-line"></div></div>
+            <div class="tl-content"><h4 style="color:var(--red)">TTL 만료</h4><p>10초 후 로컬 캐시가 만료되어 자동 제거</p></div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot-col"><div class="tl-dot" style="background:var(--green)">T11</div></div>
+            <div class="tl-content"><h4 style="color:var(--green)">재로딩</h4><p>다음 요청 시 Redis에서 최신 데이터(age=28) 로드</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="pc">
+        <div class="pro"><h4>장점</h4>구현이 매우 단순하다. 동기화 메커니즘이 필요 없고, Caffeine의 expireAfterWrite만 짧게 설정하면 된다.</div>
+        <div class="con"><h4>단점</h4>TTL 만료 전까지 불일치 존재. TTL을 너무 짧게 잡으면 히트율이 크게 떨어져 로컬 캐시의 의미가 없어진다.</div>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--amber)">언제 쓸까</h3>
+        <p>Eventual Consistency가 괜찮은 데이터에 적합하다.<br>
+        상품 카테고리 목록, 공지사항, 설정값처럼 변경 빈도가 낮고 몇 초간의 불일치가 사용자 경험에 큰 영향을 미치지 않는 데이터가 좋은 후보다.</p>
+      </div>
+      <div class="alert warn">
+        <strong>주의</strong><br>TTL을 너무 짧게 설정하면 로컬 캐시 히트율이 급감하여 Redis 부하가 늘어난다. 데이터 특성에 맞는 값을 선택하라.
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S3: Redis Pub/Sub -->
+<section class="article-section" id="pubsub">
+<div class="section-content">
+  <h2 class="stitle ai">전략 2: Redis <span class="hl-c">Pub/Sub</span></h2>
+  <p class="ssub ai">데이터가 변경되었을 때 능동적으로 다른 서버들에게 알려주는 방식이다.</p>
+
+  <div class="ps-diagram ai">
+    <!-- Row 1: 서버 A -->
+    <div class="ps-row">
+      <div class="ps-node" id="ps-srvA">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        서버 A
+        <div class="ps-sub">데이터 수정 발생</div>
+      </div>
+    </div>
+
+    <!-- Connector: ① -->
+    <div class="ps-vline">
+      <div class="ps-pipe" id="ps-p1"></div>
+      <div class="ps-label" id="ps-l1">① DB 수정 + Redis 갱신</div>
+      <div class="ps-pipe" id="ps-p1b"></div>
+    </div>
+
+    <!-- Row 2: Redis -->
+    <div class="ps-row">
+      <div class="ps-node" id="ps-redis">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        Redis
+      </div>
+    </div>
+
+    <!-- Connector: ② -->
+    <div class="ps-vline">
+      <div class="ps-pipe" id="ps-p2"></div>
+      <div class="ps-label" id="ps-l2">② Pub/Sub 채널에 무효화 메시지 발행<br><span style="font-family:var(--font-mono);font-size:9px">cache:invalidate → user:1</span></div>
+      <div class="ps-pipe" id="ps-p2b"></div>
+    </div>
+
+    <!-- Row 3: 3-way branch -->
+    <div class="ps-branch">
+      <div class="ps-branch-line" id="ps-bline" style="left:calc(50% - 210px);width:420px"></div>
+      <div class="ps-branch-col" style="margin:0 10px">
+        <div class="ps-branch-vpipe" id="ps-bv0"></div>
+        <div class="ps-node" id="ps-srvA2" style="min-width:120px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          서버 A
+          <div class="ps-sub">③ 자신은<br>이미 갱신됨</div>
+        </div>
+      </div>
+      <div class="ps-branch-col" style="margin:0 10px">
+        <div class="ps-branch-vpipe" id="ps-bv1"></div>
+        <div class="ps-node" id="ps-srvB2" style="min-width:120px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          서버 B
+          <div class="ps-sub">③ 메시지 수신<br>→ Caffeine에서<br>user:1 삭제</div>
+        </div>
+      </div>
+      <div class="ps-branch-col" style="margin:0 10px">
+        <div class="ps-branch-vpipe" id="ps-bv2"></div>
+        <div class="ps-node" id="ps-srvC2" style="min-width:120px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          서버 C
+          <div class="ps-sub">③ 메시지 수신<br>→ Caffeine에서<br>user:1 삭제</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result: ④ -->
+    <div class="ps-result" id="ps-result">④ 서버 B, C에 다음 요청이 오면 → Caffeine MISS → Redis에서 최신 데이터 로드</div>
+
+    <!-- Step indicator -->
+    <div class="ps-steps-panel">
+      <div class="ps-step-row" id="ps-s0"><span class="ps-step-num">1</span>서버 A에서 데이터 수정이 발생한다</div>
+      <div class="ps-step-row" id="ps-s1"><span class="ps-step-num">2</span>DB를 수정하고 Redis 캐시를 갱신한다</div>
+      <div class="ps-step-row" id="ps-s2"><span class="ps-step-num">3</span>Redis Pub/Sub 채널에 무효화 메시지를 발행한다</div>
+      <div class="ps-step-row" id="ps-s3"><span class="ps-step-num">4</span>각 서버가 메시지를 수신하여 로컬 캐시를 삭제한다</div>
+      <div class="ps-step-row" id="ps-s4"><span class="ps-step-num">5</span>다음 요청 시 Redis에서 최신 데이터를 로드한다</div>
+    </div>
+
+    <!-- Controls -->
+    <div class="ps-ctrl">
+      <button class="ps-btn pri" id="psBtnPlay" onclick="psPlay()">재생</button>
+      <button class="ps-btn" id="psBtnStep" onclick="psStep()">단계별</button>
+      <button class="ps-btn" onclick="psReset()">초기화</button>
+    </div>
+  </div>
+
+  <div class="g2 ai" style="margin-top:14px">
+    <div class="card">
+      <h3 style="color:var(--cyan)">실시간에 가까운 동기화</h3>
+      <p>데이터 변경 즉시 모든 서버의 로컬 캐시가 무효화되므로, TTL 기반보다 훨씬 짧은 불일치 시간을 달성할 수 있다.</p>
+    </div>
+    <div class="card" style="border-color:var(--amber-dim)">
+      <h3 style="color:var(--amber)">주의: 메시지 유실 가능성</h3>
+      <p>Redis Pub/Sub은 <strong style="color:var(--amber)">"fire and forget"</strong> 방식이다. 서버가 연결이 끊어졌다가 복구되면, 그 사이 발행된 메시지를 받지 못한다.<br>
+      실무에서는 <strong style="color:var(--amber)">Pub/Sub + TTL을 함께 사용</strong>하는 것이 일반적이다.</p>
+    </div>
+  </div>
+
+  <div class="def-box ai">Pub/Sub이 실시간 동기화를 담당하되, 혹시 메시지를 놓치더라도 <strong>TTL이 안전망</strong>이 되는 구조다.</div>
+</div>
+</section>
+
+<!-- S4: Pub/Sub 코드 예시 -->
+<section class="article-section" id="code">
+<div class="section-content">
+  <h2 class="stitle ai">Pub/Sub <span class="hl-c">코드 예시</span></h2>
+
+  <div class="stabs ai">
+    <button class="stab on" onclick="swCodeTab('pub')">Publisher</button>
+    <button class="stab" onclick="swCodeTab('sub')">Subscriber</button>
+  </div>
+
+  <div class="spanel on ai" id="p-pub">
+    <div class="code-block">
+<pre><span class="ann">@Service</span>
+<span class="kw">public class</span> <span class="tp">UserService</span> &#123;
+
+    <span class="kw">private final</span> <span class="tp">UserRepository</span> userRepository;
+    <span class="kw">private final</span> <span class="tp">RedisTemplate</span>&lt;<span class="tp">String</span>, <span class="tp">Object</span>&gt; redisTemplate;
+    <span class="kw">private final</span> <span class="tp">Cache</span>&lt;<span class="tp">String</span>, <span class="tp">User</span>&gt; localCache; <span class="cm">// Caffeine</span>
+
+    <span class="kw">public void</span> <span class="fn">updateUser</span>(<span class="tp">String</span> userId, <span class="tp">UserUpdateRequest</span> request) &#123;
+        <span class="cm">// ① DB 수정</span>
+        userRepository.<span class="fn">update</span>(userId, request);
+
+        <span class="cm">// ② Redis 캐시 갱신</span>
+        <span class="tp">User</span> updated = userRepository.<span class="fn">findById</span>(userId);
+        redisTemplate.<span class="fn">opsForValue</span>().<span class="fn">set</span>(<span class="str">"user:"</span> + userId, updated);
+
+        <span class="cm">// ③ 자기 자신의 로컬 캐시 갱신</span>
+        localCache.<span class="fn">put</span>(userId, updated);
+
+        <span class="cm">// ④ 다른 서버들에게 무효화 메시지 발행</span>
+        redisTemplate.<span class="fn">convertAndSend</span>(
+            <span class="str">"cache:invalidate"</span>,     <span class="cm">// 채널 이름</span>
+            <span class="str">"user:"</span> + userId        <span class="cm">// 무효화할 키</span>
+        );
+    &#125;
+&#125;</pre>
+    </div>
+    <div class="alert info">
+      <strong>핵심</strong><br>DB 수정 → Redis 갱신 → 자기 캐시 갱신 → Pub/Sub으로 다른 서버 통보
+    </div>
+  </div>
+
+  <div class="spanel ai" id="p-sub">
+    <div class="code-block">
+<pre><span class="ann">@Component</span>
+<span class="kw">public class</span> <span class="tp">CacheInvalidationListener</span> &#123;
+
+    <span class="kw">private final</span> <span class="tp">Cache</span>&lt;<span class="tp">String</span>, <span class="tp">User</span>&gt; localCache; <span class="cm">// Caffeine</span>
+
+    <span class="cm">// Redis Pub/Sub 메시지를 수신하면 이 메서드가 호출됨</span>
+    <span class="ann">@Override</span>
+    <span class="kw">public void</span> <span class="fn">onMessage</span>(<span class="tp">Message</span> message, <span class="kw">byte</span>[] pattern) &#123;
+        <span class="tp">String</span> invalidatedKey = <span class="kw">new</span> <span class="tp">String</span>(message.<span class="fn">getBody</span>());
+
+        <span class="cm">// 해당 키를 로컬 캐시에서 제거</span>
+        localCache.<span class="fn">invalidate</span>(invalidatedKey);
+
+        <span class="cm">// 다음 요청 시 Redis → DB 순서로</span>
+        <span class="cm">// 최신 데이터를 다시 로드하게 됨</span>
+    &#125;
+&#125;</pre>
+    </div>
+    <div class="alert safe">
+      <strong>핵심</strong><br>무효화 메시지 수신 → 로컬 캐시에서 해당 키 삭제 → 다음 요청 시 Redis에서 최신 데이터 로드
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S5: Redis Streams / MQ -->
+<section class="article-section" id="streams">
+<div class="section-content">
+  <h2 class="stitle ai">전략 3: Redis <span class="hl-c">Streams / 메시지 큐</span></h2>
+  <p class="ssub ai">Pub/Sub의 메시지 유실 문제를 보완하기 위해, 메시지가 영속적으로 저장되는 방식을 사용한다.</p>
+
+  <div class="card ai" style="margin-bottom:14px;padding:20px">
+    <h3 style="margin-bottom:14px;color:var(--cyan)">Redis Stream vs Pub/Sub 핵심 차이</h3>
+    <div class="flow-h" style="margin-bottom:14px">
+      <div class="flow-node nd-pub">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        서버 A<br><span style="font-size:10px;font-weight:400;color:var(--text-dim)">이벤트 추가</span>
+      </div>
+      <div class="flow-arr">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        XADD
+      </div>
+      <div class="flow-node nd-stream" style="min-width:160px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
+        Redis Stream<br><span style="font-size:10px;font-weight:400;color:var(--text-dim)">메시지 영속 저장</span>
+      </div>
+      <div class="flow-arr">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        XREADGROUP
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="flow-node nd-sub" style="min-height:auto;padding:6px 12px;font-size:11px">Consumer A</div>
+        <div class="flow-node nd-sub" style="min-height:auto;padding:6px 12px;font-size:11px">Consumer B</div>
+        <div class="flow-node nd-sub" style="min-height:auto;padding:6px 12px;font-size:11px">Consumer C</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2 ai">
+    <div class="card" style="border-color:var(--green-dim)">
+      <h3 style="color:var(--green)">Pub/Sub 대비 장점</h3>
+      <p>메시지가 영속적으로 저장되며, Consumer Group을 지원한다. 서버가 다운되었다가 복구되더라도 놓친 메시지를 다시 읽어올 수 있다.</p>
+    </div>
+    <div class="card" style="border-color:var(--red-dim)">
+      <h3 style="color:var(--red)">주의사항</h3>
+      <p>구현 복잡도가 상당히 높다. 메시지 순서 보장, 중복 처리, 소비자 그룹 관리 등 고려 사항이 많다.<br><br>
+      이 정도 일관성이 필요하면 <strong style="color:var(--red)">로컬 캐시를 아예 사용하지 않고 Redis만 쓰는 것</strong>이 더 단순하고 안전할 수 있다.</p>
+    </div>
+  </div>
+
+  <div class="alert warn ai" style="margin-top:14px">
+    <strong>실무 판단</strong><br>Streams/MQ는 금융 데이터, 재고 수량처럼 메시지 유실이 절대 허용되지 않는 경우에만 적용한다. 대부분의 캐시 동기화 시나리오에서는 Pub/Sub + TTL 조합으로 충분하다.
+  </div>
+</div>
+</section>
+
+<!-- S6: 라이브러리 활용 -->
+<section class="article-section" id="library">
+<div class="section-content">
+  <h2 class="stitle ai">전략 4: <span class="hl-g">라이브러리 활용</span></h2>
+  <p class="ssub ai">J2Cache, Layering Cache 같은 라이브러리는 L1+L2 구조와 동기화를 내장 제공한다.</p>
+
+  <div class="card ai" style="margin-bottom:14px">
+    <h3 style="margin-bottom:12px;color:var(--cyan)">MultiLevelCacheManager 핵심 골격</h3>
+    <div class="stabs" style="margin-bottom:12px">
+      <button class="stab on" onclick="swMlTab('read')">읽기 흐름</button>
+      <button class="stab" onclick="swMlTab('write')">쓰기 흐름</button>
+    </div>
+    <div class="spanel on" id="ml-read">
+      <div class="flow-h" style="margin-bottom:12px">
+        <div class="flow-node nd-sub">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          L1 확인<br><span style="font-size:10px;font-weight:400;color:var(--text-dim)">Caffeine</span>
+        </div>
+        <div class="flow-arr">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          MISS
+        </div>
+        <div class="flow-node nd-pub">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          L2 확인<br><span style="font-size:10px;font-weight:400;color:var(--text-dim)">Redis</span>
+        </div>
+        <div class="flow-arr">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          MISS
+        </div>
+        <div class="flow-node nd-redis">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/></svg>
+          DB 조회<br><span style="font-size:10px;font-weight:400;color:var(--text-dim)">+ 양쪽 저장</span>
+        </div>
+      </div>
+      <div class="code-block">
+<pre><span class="kw">public</span> <span class="tp">Object</span> <span class="fn">get</span>(<span class="tp">String</span> key, <span class="tp">Supplier</span>&lt;<span class="tp">Object</span>&gt; dbLoader) &#123;
+    <span class="cm">// L1 확인</span>
+    <span class="tp">Object</span> value = localCache.<span class="fn">getIfPresent</span>(key);
+    <span class="kw">if</span> (value != <span class="kw">null</span>) <span class="kw">return</span> value;
+
+    <span class="cm">// L2 확인</span>
+    value = redis.<span class="fn">opsForValue</span>().<span class="fn">get</span>(key);
+    <span class="kw">if</span> (value != <span class="kw">null</span>) &#123;
+        localCache.<span class="fn">put</span>(key, value);  <span class="cm">// L1에 승격</span>
+        <span class="kw">return</span> value;
+    &#125;
+
+    <span class="cm">// DB 조회 + 양쪽 캐시에 저장</span>
+    value = dbLoader.<span class="fn">get</span>();
+    redis.<span class="fn">opsForValue</span>().<span class="fn">set</span>(key, value, <span class="tp">Duration</span>.<span class="fn">ofMinutes</span>(<span class="str">30</span>));
+    localCache.<span class="fn">put</span>(key, value);
+    <span class="kw">return</span> value;
+&#125;</pre>
+      </div>
+    </div>
+    <div class="spanel" id="ml-write">
+      <div class="flow-h" style="margin-bottom:12px">
+        <div class="flow-node" style="border-color:var(--red-dim);color:var(--red)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          L2 삭제<br><span style="font-size:10px;font-weight:400;color:var(--text-dim)">Redis</span>
+        </div>
+        <div class="flow-arr">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </div>
+        <div class="flow-node" style="border-color:var(--red-dim);color:var(--red)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          자기 L1 삭제<br><span style="font-size:10px;font-weight:400;color:var(--text-dim)">Caffeine</span>
+        </div>
+        <div class="flow-arr">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          Pub/Sub
+        </div>
+        <div class="flow-node nd-stream">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
+          다른 서버<br><span style="font-size:10px;font-weight:400;color:var(--text-dim)">L1 무효화</span>
+        </div>
+      </div>
+      <div class="code-block">
+<pre><span class="kw">public void</span> <span class="fn">evict</span>(<span class="tp">String</span> key) &#123;
+    redis.<span class="fn">delete</span>(key);                          <span class="cm">// L2 삭제</span>
+    localCache.<span class="fn">invalidate</span>(key);                 <span class="cm">// 자기 L1 삭제</span>
+    redis.<span class="fn">convertAndSend</span>(<span class="str">"cache:evict"</span>, key);   <span class="cm">// 다른 서버 L1 무효화 통보</span>
+&#125;</pre>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S7: 전략 비교 -->
+<section class="article-section" id="compare">
+<div class="section-content">
+  <h2 class="stitle ai">어떤 전략을 <span class="hl-c">쓸까</span></h2>
+  <p class="ssub ai">결국 정확성 vs 복잡도의 트레이드오프다.</p>
+
+  <div class="ai" style="overflow-x:auto;margin-bottom:16px">
+    <table class="cmp-table">
+      <thead>
+        <tr>
+          <th>전략</th>
+          <th>동기화 속도</th>
+          <th>구현 복잡도</th>
+          <th>메시지 유실</th>
+          <th>적합한 데이터</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>TTL 기반</strong></td>
+          <td><span class="badge bad">수 초~수 분</span></td>
+          <td><span class="badge good">매우 낮음</span></td>
+          <td>해당 없음</td>
+          <td>설정값, 공지사항, 코드 테이블</td>
+        </tr>
+        <tr>
+          <td><strong>Pub/Sub + TTL</strong></td>
+          <td><span class="badge good">실시간</span></td>
+          <td><span class="badge mid">적당</span></td>
+          <td><span class="badge mid">가능</span> (TTL 안전망)</td>
+          <td>사용자 프로필, 상품 정보</td>
+        </tr>
+        <tr>
+          <td><strong>Streams / MQ</strong></td>
+          <td><span class="badge good">실시간</span></td>
+          <td><span class="badge bad">높음</span></td>
+          <td><span class="badge good">없음</span></td>
+          <td>금융 데이터, 재고 수량</td>
+        </tr>
+        <tr>
+          <td><strong>라이브러리</strong></td>
+          <td><span class="badge good">실시간</span></td>
+          <td><span class="badge good">낮음</span></td>
+          <td><span class="badge mid">가능</span> (내부 Pub/Sub)</td>
+          <td>범용 (빠른 도입 필요 시)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="dtree ai">
+    <div class="dq-box">"이 데이터가 몇 초간 오래된 값을 보여줘도 괜찮은가?"</div>
+    <div class="d-arr">↓</div>
+    <div class="d-opts">
+      <div class="d-opt yes">
+        <h4>"예" → TTL이면 충분</h4>
+        <p>변경 빈도 낮은 데이터<br>수 초 불일치 허용 가능</p>
+      </div>
+      <div class="d-opt maybe">
+        <h4>"아니오" → Pub/Sub 추가</h4>
+        <p>실시간 반영 필요<br>TTL을 안전망으로 병행</p>
+      </div>
+      <div class="d-opt no">
+        <h4>"절대 안 됨" → 로컬 캐시 재고</h4>
+        <p>완벽한 정합성이 필요하면<br>Redis만 쓰는 게 더 안전</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S8: 핵심 정리 -->
+<section class="article-section" id="summary">
+<div class="section-content">
+  <h2 class="stitle ai"><span class="hl-g">핵심 정리</span></h2>
+
+  <div class="g3 ai">
+    <div class="card" style="text-align:center;border-color:var(--cyan-dim)">
+      <div class="ci" style="background:var(--cyan-pale);margin:0 auto 10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <h3 style="color:var(--cyan)">TTL = 기본기</h3>
+      <p>가장 단순하고 안전한 출발점.<br>변경 빈도 낮은 데이터에 충분하다.</p>
+    </div>
+    <div class="card" style="text-align:center;border-color:var(--green-dim)">
+      <div class="ci" style="background:var(--green-pale);margin:0 auto 10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
+      </div>
+      <h3 style="color:var(--green)">Pub/Sub + TTL = 실무 표준</h3>
+      <p>실시간 동기화 + 안전망 조합.<br>대부분의 시나리오에 적합하다.</p>
+    </div>
+    <div class="card" style="text-align:center;border-color:var(--amber-dim)">
+      <div class="ci" style="background:var(--amber-pale);margin:0 auto 10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <h3 style="color:var(--amber)">100% 정합성?</h3>
+      <p>로컬 캐시 자체를 재고하라.<br>캐시의 목적은 성능 향상이다.</p>
+    </div>
+  </div>
+
+  <div class="quote ai">
+    캐시 동기화에서 100% 완벽한 정합성을 추구하는 것은 캐시의 본래 목적인 <strong>성능 향상</strong>과 상충한다. <strong>적절한 타협점</strong>을 찾는 것이 포인트다.
+  </div>
+
+  <div class="sum-banner ai">
+    <h3>판단 기준은 하나: "몇 초간 오래된 값이 괜찮은가?"</h3>
+    <p>예 → TTL | 아니오 → Pub/Sub | 절대 안 됨 → 로컬 캐시 재고</p>
+  </div>
+</div>
+</section>
+</BlogLayout>
+
+<style is:global>
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 30% 20%,rgba(0,212,255,.06) 0%,transparent 50%),radial-gradient(ellipse at 70% 80%,rgba(0,255,136,.04) 0%,transparent 50%);pointer-events:none;z-index:0}
+
+/* ── SYNC DEMO ── */
+.sync-demo{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px;position:relative;overflow:hidden;backdrop-filter:blur(8px)}
+.sync-demo::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.015) 2px,rgba(0,212,255,.015) 4px);pointer-events:none}
+.sync-title{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:14px;text-align:center}
+.sync-servers{display:flex;justify-content:center;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+.sync-srv{min-width:120px;padding:14px 16px;border-radius:var(--r-lg);text-align:center;background:var(--surface);border:2px solid var(--border);transition:all .5s}
+.sync-srv.synced{border-color:var(--green);background:var(--green-pale)}
+.sync-srv.stale{border-color:var(--red);background:var(--red-pale);animation:staleBlink .8s ease-in-out infinite}
+.sync-srv.updating{border-color:var(--amber);background:var(--amber-pale)}
+@keyframes staleBlink{0%,100%{box-shadow:none}50%{box-shadow:0 0 12px rgba(255,51,68,.4)}}
+.sync-srv h4{font-size:13px;font-weight:700;margin-bottom:6px}
+.sync-srv .srv-lbl{font-size:11px;color:var(--text-dim);margin-bottom:4px}
+.sync-srv .val{font-family:var(--font-mono);font-size:14px;font-weight:700;padding:4px 12px;border-radius:8px;background:rgba(0,0,0,.3);display:inline-block}
+.sync-srv.synced h4{color:var(--green)}
+.sync-srv.stale h4{color:var(--red)}
+.sync-srv.updating h4{color:var(--amber)}
+.sync-redis{padding:12px 20px;border-radius:var(--r-lg);background:var(--surface);border:1px solid var(--border);text-align:center;margin-bottom:14px}
+.sync-redis h4{font-size:13px;font-weight:700;color:var(--cyan);margin-bottom:4px}
+.sync-redis .val{font-family:var(--font-mono);font-size:14px;font-weight:700}
+.sync-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.sync-btn{min-height:34px;padding:6px 18px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer;transition:all .25s;color:var(--text-sec)}
+.sync-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.sync-btn.primary{border-color:var(--cyan);color:var(--cyan)}
+.sync-btn.primary:hover{background:var(--cyan);color:var(--bg)}
+.sync-msg{text-align:center;font-size:15px;color:var(--text-sec);min-height:20px;margin-top:10px}
+
+/* ── TTL TIMELINE ── */
+.tl-box{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px;position:relative;overflow:hidden}
+.tl-box::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.015) 2px,rgba(0,212,255,.015) 4px);pointer-events:none}
+.tl-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.tl-title{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);letter-spacing:1px}
+.tl-items{display:flex;flex-direction:column;gap:0;margin-bottom:14px}
+.tl-item{display:flex;align-items:stretch;gap:14px;min-height:56px}
+.tl-dot-col{display:flex;flex-direction:column;align-items:center;width:30px;flex-shrink:0}
+.tl-dot{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--bg);flex-shrink:0;font-family:var(--font-mono)}
+.tl-line{flex:1;width:2px;background:var(--border);margin:0 auto}
+.tl-content{flex:1;padding:4px 0 16px}
+.tl-content h4{font-size:13px;font-weight:700;margin-bottom:3px}
+.tl-content p{font-size:15px;color:var(--text-sec);line-height:1.7}
+
+/* ── PUB/SUB DIAGRAM ── */
+.ps-diagram{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px;position:relative;overflow:hidden;backdrop-filter:blur(8px)}
+.ps-diagram::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.015) 2px,rgba(0,212,255,.015) 4px);pointer-events:none}
+.ps-row{display:flex;justify-content:center;align-items:center;position:relative}
+.ps-node{min-width:130px;padding:12px 14px;border-radius:var(--r-lg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:13px;font-weight:700;text-align:center;background:var(--surface);border:1px solid var(--border);transition:all .5s;opacity:.35;transform:scale(.95)}
+.ps-node svg{width:22px;height:22px}
+.ps-node.lit{opacity:1;transform:scale(1);border-color:var(--cyan);background:var(--cyan-pale)}
+.ps-node.glow{opacity:1;transform:scale(1);border-color:var(--cyan);background:var(--cyan-pale);box-shadow:var(--glow-cyan)}
+.ps-node.lit-g{opacity:1;transform:scale(1);border-color:var(--green);background:var(--green-pale)}
+.ps-node.glow-g{opacity:1;transform:scale(1);border-color:var(--green);background:var(--green-pale);box-shadow:var(--glow-green)}
+.ps-node .ps-sub{font-size:10px;font-weight:400;margin-top:2px;line-height:1.4;color:var(--text-sec)}
+.ps-node.lit .ps-sub,.ps-node.glow .ps-sub{color:var(--cyan)}
+.ps-node.lit-g .ps-sub,.ps-node.glow-g .ps-sub{color:var(--green)}
+.ps-vline{display:flex;flex-direction:column;align-items:center;min-height:44px;position:relative;justify-content:center;gap:0}
+.ps-pipe{width:3px;height:20px;background:var(--border);border-radius:2px;transition:background .4s}
+.ps-pipe.lit{background:var(--cyan)}
+.ps-label{font-size:10px;font-weight:700;color:var(--text-dim);padding:2px 10px;border-radius:12px;background:var(--surface);transition:all .4s;text-align:center;line-height:1.5;border:1px solid var(--border);margin:2px 0}
+.ps-label.lit{color:var(--cyan);background:var(--cyan-pale);border-color:var(--cyan-dim)}
+.ps-branch{display:flex;align-items:flex-start;justify-content:center;gap:0;position:relative;margin-top:0}
+.ps-branch-line{position:absolute;top:0;height:3px;background:var(--border);border-radius:2px;transition:background .4s;z-index:1}
+.ps-branch-line.lit{background:var(--cyan)}
+.ps-branch-col{display:flex;flex-direction:column;align-items:center;min-width:130px}
+.ps-branch-vpipe{width:3px;height:18px;background:var(--border);border-radius:2px;transition:background .4s}
+.ps-branch-vpipe.lit{background:var(--cyan)}
+.ps-steps-panel{margin-top:12px;display:flex;flex-direction:column;gap:4px}
+.ps-step-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);transition:all .4s;padding:5px 10px;border-radius:var(--r-sm);border:1px solid transparent}
+.ps-step-num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);font-size:10px;font-weight:700;flex-shrink:0;font-family:var(--font-mono)}
+.ps-step-row.lit{color:var(--text);background:var(--cyan-pale);border-color:var(--cyan-dim)}
+.ps-step-row.lit .ps-step-num{background:var(--cyan);color:var(--bg);border-color:var(--cyan)}
+.ps-result{margin-top:10px;padding:12px 16px;border-radius:var(--r-lg);font-size:12px;font-weight:600;text-align:center;opacity:0;transition:all .5s;line-height:1.8;background:var(--amber-pale);border:1px solid var(--amber-dim);color:var(--amber)}
+.ps-result.vis{opacity:1}
+.ps-ctrl{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.ps-btn{min-height:32px;padding:5px 18px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer;transition:all .25s;color:var(--text-sec)}
+.ps-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.ps-btn.pri{border-color:var(--cyan);color:var(--cyan)}
+.ps-btn.pri:hover{background:var(--cyan);color:var(--bg)}
+.ps-btn:disabled{opacity:.3;cursor:not-allowed}
+
+/* ── DECISION TREE ── */
+.dtree{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:18px}
+.dq-box{background:var(--surface);border:1px solid var(--cyan-dim);border-radius:var(--r-lg);padding:14px 24px;font-size:14px;font-weight:700;color:var(--cyan);text-align:center}
+.d-opts{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.d-opt{flex:1;min-width:180px;max-width:260px;padding:16px;border-radius:var(--r-lg);text-align:center;border:1px solid var(--border);background:var(--bg-card);transition:all .3s}
+.d-opt:hover{transform:translateY(-2px)}
+.d-opt h4{font-size:13px;font-weight:700;margin-bottom:6px}
+.d-opt p{font-size:11px;color:var(--text-sec);line-height:1.7}
+.d-opt.yes{border-color:var(--green-dim)}.d-opt.yes h4{color:var(--green)}
+.d-opt.no{border-color:var(--red-dim)}.d-opt.no h4{color:var(--red)}
+.d-opt.maybe{border-color:var(--amber-dim)}.d-opt.maybe h4{color:var(--amber)}
+.d-arr{color:var(--text-dim);font-size:18px}
+
+/* ── STATUS DOT ── */
+.sv-status{font-family:var(--font-mono);font-size:11px;padding:3px 10px;border-radius:12px;font-weight:700}
+.sv-status.ok{color:var(--green);background:var(--green-pale);border:1px solid var(--green-dim)}
+.sv-status.danger{color:var(--red);background:var(--red-pale);border:1px solid var(--red-dim);animation:statusBlink 1s ease-in-out infinite}
+@keyframes statusBlink{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){.sync-servers{flex-direction:column;align-items:center}.d-opts{flex-direction:column}}
+</style>
+
+<script>
+const $=id=>document.getElementById(id);
+
+// ── SYNC DEMO (S1) ──
+let syncTimer=null;
+function runSyncDemo(){
+  if(syncTimer)return;
+  const title=$('syncTitle'),msg=$('syncMsg');
+  const sA=$('srvA'),sB=$('srvB'),sC=$('srvC');
+  const vA=$('valA'),vB=$('valB'),vC=$('valC'),vR=$('valRedis');
+
+  title.textContent='T1: 서버 A에서 나이를 28로 수정!';
+  sA.className='sync-srv updating';
+  vA.textContent='age: 28';
+  vR.textContent='age: 28';
+  msg.textContent='서버 A가 자신의 캐시와 Redis를 갱신했습니다...';
+
+  syncTimer=setTimeout(()=>{
+    sA.className='sync-srv synced';
+    sB.className='sync-srv stale';
+    sC.className='sync-srv stale';
+    msg.textContent='서버 B, C에는 여전히 옛날 데이터가 남아있습니다!';
+    title.textContent='T1: 서버 B, C의 로컬 캐시 불일치 발생';
+
+    syncTimer=setTimeout(()=>{
+      msg.textContent='사용자가 새로고침할 때마다 27과 28이 번갈아 보이는 현상 발생!';
+      let flicker=0;
+      const flickerInt=setInterval(()=>{
+        vB.textContent=flicker%2===0?'age: 28':'age: 27';
+        vC.textContent=flicker%2===0?'age: 27':'age: 28';
+        flicker++;
+        if(flicker>=6){
+          clearInterval(flickerInt);
+          vB.textContent='age: 27';
+          vC.textContent='age: 27';
+          msg.textContent='이것이 로컬 캐시 동기화 문제의 핵심입니다.';
+          syncTimer=null;
+        }
+      },500);
+    },1500);
+  },1200);
+}
+function resetSyncDemo(){
+  if(syncTimer){clearTimeout(syncTimer);syncTimer=null}
+  $('syncTitle').textContent='T0: 초기 상태 — 모든 캐시 일치';
+  $('syncMsg').textContent='';
+  ['srvA','srvB','srvC'].forEach(id=>{$(id).className='sync-srv synced'});
+  ['valA','valB','valC','valRedis'].forEach(id=>{$(id).textContent='age: 27'});
+}
+
+// ── CODE TABS (S4) ──
+function swCodeTab(t){
+  document.querySelectorAll('#code .stab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('#code .spanel').forEach(p=>p.classList.remove('on'));
+  if(t==='pub'){document.querySelectorAll('#code .stab')[0].classList.add('on');$('p-pub').classList.add('on')}
+  else{document.querySelectorAll('#code .stab')[1].classList.add('on');$('p-sub').classList.add('on')}
+}
+
+// ── ML TABS (S6) ──
+function swMlTab(t){
+  document.querySelectorAll('#library .stab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('#library .spanel').forEach(p=>p.classList.remove('on'));
+  if(t==='read'){document.querySelectorAll('#library .stab')[0].classList.add('on');$('ml-read').classList.add('on')}
+  else{document.querySelectorAll('#library .stab')[1].classList.add('on');$('ml-write').classList.add('on')}
+}
+
+// ── PUB/SUB DIAGRAM (S3) ──
+let psStep_=0,psAutoTimer=null;
+
+const el=id=>document.getElementById(id);
+
+function psClrAll(){
+  ['ps-srvA','ps-redis','ps-srvA2','ps-srvB2','ps-srvC2'].forEach(id=>{
+    const e=el(id);if(e){e.classList.remove('lit','glow','lit-g','glow-g')}
+  });
+  ['ps-p1','ps-p1b','ps-p2','ps-p2b','ps-bv0','ps-bv1','ps-bv2'].forEach(id=>{
+    const e=el(id);if(e)e.classList.remove('lit')
+  });
+  ['ps-l1','ps-l2'].forEach(id=>{const e=el(id);if(e)e.classList.remove('lit')});
+  const bl=el('ps-bline');if(bl)bl.classList.remove('lit');
+  el('ps-result').classList.remove('vis');
+  for(let i=0;i<5;i++){const e=el('ps-s'+i);if(e)e.classList.remove('lit')}
+  psStep_=0;
+}
+
+const PS_STEPS=[
+  function(){psClrAll();el('ps-srvA').classList.add('glow');el('ps-s0').classList.add('lit')},
+  function(){el('ps-p1').classList.add('lit');el('ps-l1').classList.add('lit');el('ps-p1b').classList.add('lit');el('ps-redis').classList.add('glow');el('ps-srvA').classList.remove('glow');el('ps-srvA').classList.add('lit');el('ps-s1').classList.add('lit')},
+  function(){el('ps-p2').classList.add('lit');el('ps-l2').classList.add('lit');el('ps-p2b').classList.add('lit');el('ps-redis').classList.remove('glow');el('ps-redis').classList.add('lit');el('ps-s2').classList.add('lit')},
+  function(){el('ps-bline').classList.add('lit');['ps-bv0','ps-bv1','ps-bv2'].forEach(id=>el(id).classList.add('lit'));el('ps-srvA2').classList.add('lit');el('ps-srvB2').classList.add('glow');el('ps-srvC2').classList.add('glow');el('ps-s3').classList.add('lit')},
+  function(){el('ps-srvB2').classList.remove('glow');el('ps-srvB2').classList.add('lit-g');el('ps-srvC2').classList.remove('glow');el('ps-srvC2').classList.add('lit-g');el('ps-result').classList.add('vis');el('ps-s4').classList.add('lit')}
+];
+
+function psStep(){
+  if(psAutoTimer){clearInterval(psAutoTimer);psAutoTimer=null}
+  if(psStep_>=PS_STEPS.length){psClrAll();return}
+  PS_STEPS[psStep_]();
+  psStep_++;
+}
+
+function psPlay(){
+  psClrAll();
+  if(psAutoTimer){clearInterval(psAutoTimer);psAutoTimer=null}
+  psAutoTimer=setInterval(()=>{
+    if(psStep_>=PS_STEPS.length){clearInterval(psAutoTimer);psAutoTimer=null;return}
+    PS_STEPS[psStep_]();
+    psStep_++;
+  },1200);
+}
+
+function psReset(){
+  if(psAutoTimer){clearInterval(psAutoTimer);psAutoTimer=null}
+  psClrAll();
+}
+</script>

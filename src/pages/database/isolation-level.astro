@@ -1,0 +1,768 @@
+---
+import BlogLayout from '../../layouts/BlogLayout.astro';
+const sections = [
+  { id: 'intro', title: 'Intro' },
+  { id: 'anomalies', title: 'Anomalies' },
+  { id: 'levels', title: 'Isolation Levels' },
+  { id: 'rc-vs-rr', title: 'RC vs RR' },
+  { id: 'mvcc', title: 'MVCC' },
+  { id: 'lock', title: 'Lock & Concurrency' },
+  { id: 'practice', title: 'Practice' },
+  { id: 'summary', title: 'Summary' },
+];
+---
+
+<BlogLayout title="Transaction Isolation Level — Concurrency Control Dashboard" sections={sections} category="database">
+
+<!-- S0: HERO -->
+<section class="article-hero article-section" id="intro">
+<div class="hero-c">
+  <div class="hero-beacon ai">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+  </div>
+  <h1 class="htitle ai">TRANSACTION<br><span class="gr">ISOLATION</span></h1>
+  <p class="hdesc ai">동시에 실행되는 트랜잭션들이 서로를 얼마나 볼 수 있는가.<br>정합성과 동시성의 줄다리기를 어디서 끊을지 정하는 규칙이다.</p>
+</div>
+</section>
+
+<!-- S1: ANOMALIES -->
+<section class="article-section" id="anomalies">
+<div class="section-content">
+  <h2 class="stitle ai">격리가 부족하면 생기는 <span class="hl-a">3가지 문제</span></h2>
+  <p class="ssub ai">트랜잭션이 동시에 실행될 때, 아무런 규칙 없이 서로의 데이터를 자유롭게 읽고 쓰면 다음 세 가지 이상 현상이 발생한다.</p>
+
+  <!-- Dirty Read -->
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" style="width:18px;height:18px;flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span style="color:var(--red)">Dirty Read</span>
+      <span style="font-size:15px;color:var(--text-sec);font-weight:400">— 커밋 안 된 데이터를 읽는 문제</span>
+    </h3>
+    <div class="tx-tl">
+      <div class="tx-hd t1">TX1</div>
+      <div class="tx-hd t2">TX2</div>
+      <div class="tx-row">
+        <div class="tx-cell"><span class="act upd">UPDATE</span>&nbsp; balance = 500</div>
+        <div class="tx-cell empty">—</div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell empty">—</div>
+        <div class="tx-cell danger"><span class="act sel">SELECT</span>&nbsp; balance → <strong style="color:var(--red)">500</strong><br><span class="res">COMMIT 전인데 읽어버림</span></div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell"><span class="act rb">ROLLBACK</span></div>
+        <div class="tx-cell empty">—</div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell empty">—</div>
+        <div class="tx-cell danger"><span class="res">TX2가 읽은 500은 존재하지 않는 데이터</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Non-Repeatable Read -->
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" style="width:18px;height:18px;flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span style="color:var(--amber)">Non-Repeatable Read</span>
+      <span style="font-size:15px;color:var(--text-sec);font-weight:400">— 같은 쿼리인데 결과가 다른 문제</span>
+    </h3>
+    <div class="tx-tl">
+      <div class="tx-hd t1">TX1</div>
+      <div class="tx-hd t2">TX2</div>
+      <div class="tx-row">
+        <div class="tx-cell"><span class="act sel">SELECT</span>&nbsp; balance → <strong>1000</strong></div>
+        <div class="tx-cell empty">—</div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell empty">—</div>
+        <div class="tx-cell"><span class="act upd">UPDATE</span>&nbsp; balance = 500</div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell empty">—</div>
+        <div class="tx-cell"><span class="act com">COMMIT</span></div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell warn-bg"><span class="act sel">SELECT</span>&nbsp; balance → <strong style="color:var(--amber)">500</strong><br><span class="res">같은 쿼리인데 결과가 바뀜</span></div>
+        <div class="tx-cell empty">—</div>
+      </div>
+    </div>
+    <p class="body-text" style="margin-top:6px">Dirty Read와 달리 TX2가 정상적으로 COMMIT한 유효한 데이터다. 하지만 <strong style="color:var(--text)">하나의 트랜잭션 안에서 일관성이 깨졌다.</strong></p>
+  </div>
+
+  <!-- Phantom Read -->
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" style="width:18px;height:18px;flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span style="color:var(--cyan)">Phantom Read</span>
+      <span style="font-size:15px;color:var(--text-sec);font-weight:400">— 없던 행이 나타나는 문제</span>
+    </h3>
+    <div class="tx-tl">
+      <div class="tx-hd t1">TX1</div>
+      <div class="tx-hd t2">TX2</div>
+      <div class="tx-row">
+        <div class="tx-cell"><span class="act sel">SELECT</span>&nbsp; WHERE age &gt; 20 → <strong>3건</strong></div>
+        <div class="tx-cell empty">—</div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell empty">—</div>
+        <div class="tx-cell"><span class="act ins">INSERT</span>&nbsp; (age=25) 새 행 추가</div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell empty">—</div>
+        <div class="tx-cell"><span class="act com">COMMIT</span></div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell warn-bg"><span class="act sel">SELECT</span>&nbsp; WHERE age &gt; 20 → <strong style="color:var(--cyan)">4건</strong><br><span class="res">없던 행이 나타남 (Phantom)</span></div>
+        <div class="tx-cell empty">—</div>
+      </div>
+    </div>
+    <p class="body-text" style="margin-top:6px">Non-Repeatable Read는 기존 Row의 <strong style="color:var(--text)">값</strong>이 바뀌는 것이고, Phantom Read는 <strong style="color:var(--text)">행 자체</strong>가 추가/삭제되어 결과 집합이 변한다.</p>
+  </div>
+
+  <!-- Comparison Table -->
+  <div class="ai">
+    <table class="cmp-table">
+      <thead><tr><th>이상 현상</th><th>무엇이 변하나</th><th>원인</th><th>위험도</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700;color:var(--red)">Dirty Read</td>
+          <td>UNCOMMITTED 값을 읽음</td>
+          <td>다른 TX가 COMMIT 전에 읽음</td>
+          <td><span class="badge bad">높음</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--amber)">Non-Repeatable Read</td>
+          <td>같은 Row를 다시 읽었더니 값이 다름</td>
+          <td>다른 TX가 UPDATE + COMMIT</td>
+          <td><span class="badge mid">중간</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--cyan)">Phantom Read</td>
+          <td>같은 조건인데 행 수가 다름</td>
+          <td>다른 TX가 INSERT/DELETE + COMMIT</td>
+          <td><span class="badge" style="color:var(--cyan);background:var(--cyan-pale);border:1px solid var(--cyan-dim)">낮음</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</section>
+
+<!-- S2: LEVELS -->
+<section class="article-section" id="levels">
+<div class="section-content">
+  <h2 class="stitle ai">네 가지 <span class="hl-c">격리 수준</span></h2>
+  <p class="ssub ai">SQL 표준은 세 가지 이상 현상을 어디까지 허용하느냐에 따라 네 가지 격리 수준을 정의한다.</p>
+
+  <div class="g2 ai">
+    <div class="iso-card lv0">
+      <span class="iso-lv">LEVEL 0</span>
+      <h3>READ UNCOMMITTED</h3>
+      <p>다른 TX가 COMMIT하지 않은 변경도 보인다. 격리가 거의 없는 수준.</p>
+      <div class="iso-db">실무에서 거의 사용하지 않음</div>
+    </div>
+    <div class="iso-card lv1">
+      <span class="iso-lv">LEVEL 1</span>
+      <h3>READ COMMITTED</h3>
+      <p>COMMIT된 데이터만 보인다. 하지만 같은 TX 안에서 결과가 달라질 수 있다.</p>
+      <div class="iso-db">Oracle, PostgreSQL 기본</div>
+    </div>
+    <div class="iso-card lv2">
+      <span class="iso-lv">LEVEL 2</span>
+      <h3>REPEATABLE READ</h3>
+      <p>TX 시작 시점의 Snapshot 기준으로 읽는다. 같은 쿼리는 항상 같은 결과.</p>
+      <div class="iso-db">MySQL (InnoDB) 기본</div>
+    </div>
+    <div class="iso-card lv3">
+      <span class="iso-lv">LEVEL 3</span>
+      <h3>SERIALIZABLE</h3>
+      <p>트랜잭션이 하나씩 순서대로 실행되는 것처럼 동작한다. 완벽한 격리.</p>
+      <div class="iso-db">금융 정산 등 특수 상황에서만</div>
+    </div>
+  </div>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px">격리 수준별 이상 현상 허용 여부</h3>
+    <table class="cmp-table">
+      <thead><tr><th>Isolation Level</th><th>Dirty Read</th><th>Non-Repeatable Read</th><th>Phantom Read</th><th>동시성</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700;color:var(--red)">READ UNCOMMITTED</td>
+          <td><span class="badge bad">발생</span></td>
+          <td><span class="badge bad">발생</span></td>
+          <td><span class="badge bad">발생</span></td>
+          <td>매우 높음</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--amber)">READ COMMITTED</td>
+          <td><span class="badge good">방지</span></td>
+          <td><span class="badge bad">발생</span></td>
+          <td><span class="badge bad">발생</span></td>
+          <td>높음</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--cyan)">REPEATABLE READ</td>
+          <td><span class="badge good">방지</span></td>
+          <td><span class="badge good">방지</span></td>
+          <td><span class="badge mid">발생 (InnoDB: 대부분 방지)</span></td>
+          <td>보통</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--green)">SERIALIZABLE</td>
+          <td><span class="badge good">방지</span></td>
+          <td><span class="badge good">방지</span></td>
+          <td><span class="badge good">방지</span></td>
+          <td>낮음</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="alert info ai">
+    <strong>핵심</strong><br>격리 수준이 올라갈수록 데이터 정합성은 높아지지만 <strong>동시 처리 성능은 떨어진다.</strong> 정합성이냐 동시성이냐, 이 줄다리기를 어디서 끊을지 정하는 게 Isolation Level이다.
+  </div>
+</div>
+</section>
+
+<!-- S3: RC vs RR -->
+<section class="article-section" id="rc-vs-rr">
+<div class="section-content">
+  <h2 class="stitle ai">READ COMMITTED vs <span class="hl-c">REPEATABLE READ</span></h2>
+  <p class="ssub ai">실무에서 가장 많이 마주치는 두 격리 수준의 핵심 차이는 Snapshot 생성 시점이다.</p>
+
+  <div class="g2 ai">
+    <div class="snap-box rc">
+      <h4>READ COMMITTED</h4>
+      <p class="body-text" style="margin-bottom:10px">매 <strong style="color:var(--amber)">SELECT마다</strong> 새로운 Snapshot을 생성한다. 항상 최신 COMMIT 기준으로 읽는다.</p>
+      <div class="snap-dots">
+        <span class="snap-label">SELECT 1</span>
+        <div class="snap-dot active-a">S1</div>
+        <span class="snap-label">SELECT 2</span>
+        <div class="snap-dot active-a">S2</div>
+        <span class="snap-label">SELECT 3</span>
+        <div class="snap-dot active-a">S3</div>
+      </div>
+      <p style="font-size:11px;color:var(--text-dim);line-height:1.6">매번 새 Snapshot → 결과가 달라질 수 있음</p>
+    </div>
+    <div class="snap-box rr">
+      <h4>REPEATABLE READ</h4>
+      <p class="body-text" style="margin-bottom:10px">첫 번째 읽기 시 <strong style="color:var(--cyan)">단 한 번</strong> Snapshot을 생성하고, TX 끝까지 재사용한다.</p>
+      <div class="snap-dots">
+        <span class="snap-label">SELECT 1</span>
+        <div class="snap-dot active">S1</div>
+        <span class="snap-label">SELECT 2</span>
+        <div class="snap-dot" style="opacity:.4">—</div>
+        <span class="snap-label">SELECT 3</span>
+        <div class="snap-dot" style="opacity:.4">—</div>
+      </div>
+      <p style="font-size:11px;color:var(--text-dim);line-height:1.6">처음 한 번만 → 항상 같은 결과</p>
+    </div>
+  </div>
+
+  <div class="ai">
+    <table class="cmp-table">
+      <thead><tr><th>비교</th><th style="color:var(--amber)">READ COMMITTED</th><th style="color:var(--cyan)">REPEATABLE READ</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700">Snapshot 생성 시점</td>
+          <td>매 쿼리(SELECT)마다</td>
+          <td>첫 번째 읽기 시 단 한 번</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">같은 TX 안에서 같은 쿼리</td>
+          <td><span class="badge mid">결과가 다를 수 있음</span></td>
+          <td><span class="badge good">항상 같은 결과</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Undo Log 참조</td>
+          <td>최신 COMMIT 기준</td>
+          <td>TX 시작 시점 기준</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">기본 DB</td>
+          <td>Oracle, PostgreSQL</td>
+          <td>MySQL (InnoDB)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- InnoDB Phantom Read Prevention -->
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px">InnoDB의 Phantom Read 방지: Next-Key Lock</h3>
+    <p class="body-text" style="margin-bottom:14px">SQL 표준에서는 REPEATABLE READ에서 Phantom Read가 발생할 수 있지만, InnoDB는 <strong style="color:var(--text)">Next-Key Lock(Record Lock + Gap Lock)</strong>으로 대부분 방지한다.</p>
+    <div class="lock-viz">
+      <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Gap Lock: 레코드 사이의 빈 구간까지 잠근다</h4>
+      <div class="lock-row">
+        <div class="lock-gap locked">GAP</div>
+        <div class="lock-rec locked">10</div>
+        <div class="lock-gap locked">GAP</div>
+        <div class="lock-rec locked">20</div>
+        <div class="lock-gap locked">GAP</div>
+        <div class="lock-rec">30</div>
+        <div class="lock-gap">GAP</div>
+        <div class="lock-rec">40</div>
+      </div>
+      <p style="font-size:11px;color:var(--text-sec);text-align:center;margin-top:8px;line-height:1.7">
+        <strong style="color:var(--red)">Record Lock</strong>: 해당 레코드 잠금 &nbsp;|&nbsp;
+        <strong style="color:var(--amber)">Gap Lock</strong>: 사이 구간 잠금 → 새 행 INSERT 차단
+      </p>
+    </div>
+  </div>
+
+  <div class="alert warn ai">
+    <strong>주의 — 읽기 방식에 따라 다르다</strong><br><br>
+    <strong>일반 SELECT</strong>: MVCC Snapshot으로 Phantom 방지 (스냅샷 이후 INSERT된 행이 안 보임)<br>
+    <strong>SELECT ... FOR UPDATE</strong>: Next-Key Lock으로 Phantom 방지 (INSERT 자체를 차단)<br>
+    두 방식을 <strong>혼용하면</strong> 서로 다른 기준으로 읽기 때문에 결과가 달라질 수 있다.
+  </div>
+</div>
+</section>
+
+<!-- S4: MVCC -->
+<section class="article-section" id="mvcc">
+<div class="section-content">
+  <h2 class="stitle ai"><span style="color:#c4b5fd;text-shadow:0 0 30px rgba(124,58,237,.3)">MVCC</span> — Isolation의 구현 메커니즘</h2>
+  <p class="ssub ai">격리 수준은 MVCC(Multi-Version Concurrency Control)로 구현된다. 데이터를 변경할 때 이전 버전을 Undo Log에 보관하고, 읽는 TX은 자신에게 맞는 버전을 골라 읽는다.</p>
+
+  <div class="g2 ai">
+    <div class="card" style="padding:18px">
+      <div class="ci" style="background:var(--red-pale)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <h3 style="color:var(--red)">MVCC 없는 세계</h3>
+      <p>쓰기 트랜잭션이 Lock을 잡으면, 읽기 트랜잭션도 Lock이 풀릴 때까지 대기해야 한다. 읽기와 쓰기가 서로 블로킹된다.</p>
+    </div>
+    <div class="card" style="padding:18px">
+      <div class="ci" style="background:rgba(124,58,237,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 5-5 5 5 0 0 1 5 5v4"/><line x1="12" y1="15" x2="12" y2="17"/></svg></div>
+      <h3 style="color:#c4b5fd">MVCC 있는 세계</h3>
+      <p>읽는 쪽은 Undo Log에서 이전 버전을 읽고, 쓰는 쪽은 최신 데이터를 수정한다. <strong style="color:var(--text)">읽기와 쓰기가 서로 안 기다린다.</strong></p>
+    </div>
+  </div>
+
+  <div class="def-box ai">
+    <strong>Read View (스냅샷)</strong><br>트랜잭션이 "어느 시점의 데이터를 볼 것인가"를 결정하는 기준. 현재 활성 트랜잭션 목록을 기록하여, 어떤 변경이 보이고 어떤 변경이 안 보이는지 판단한다.
+  </div>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px">격리 수준별 MVCC Snapshot 동작</h3>
+    <div class="g2">
+      <div class="card" style="padding:18px">
+        <h3 style="color:var(--amber);margin-bottom:10px">READ COMMITTED</h3>
+        <div class="tx-tl" style="margin-bottom:8px">
+          <div class="tx-hd t1">TX1 (RC)</div>
+          <div class="tx-hd t2">TX2</div>
+          <div class="tx-row">
+            <div class="tx-cell"><span class="act sel">SELECT</span>&nbsp; → 1000<br><span class="res">Snapshot #1 생성</span></div>
+            <div class="tx-cell empty">—</div>
+          </div>
+          <div class="tx-row">
+            <div class="tx-cell empty">—</div>
+            <div class="tx-cell"><span class="act upd">UPDATE</span>&nbsp; balance = 500<br><span class="act com">COMMIT</span></div>
+          </div>
+          <div class="tx-row">
+            <div class="tx-cell warn-bg"><span class="act sel">SELECT</span>&nbsp; balance → <strong style="color:var(--amber)">500</strong><br><span class="res">Snapshot #2 생성 → 최신 반영</span></div>
+            <div class="tx-cell empty">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="padding:18px">
+        <h3 style="color:var(--cyan);margin-bottom:10px">REPEATABLE READ</h3>
+        <div class="tx-tl" style="margin-bottom:8px">
+          <div class="tx-hd t1">TX1 (RR)</div>
+          <div class="tx-hd t2">TX2</div>
+          <div class="tx-row">
+            <div class="tx-cell"><span class="act sel">SELECT</span>&nbsp; → 1000<br><span class="res">Snapshot 생성 (단 한 번)</span></div>
+            <div class="tx-cell empty">—</div>
+          </div>
+          <div class="tx-row">
+            <div class="tx-cell empty">—</div>
+            <div class="tx-cell"><span class="act upd">UPDATE</span>&nbsp; balance = 500<br><span class="act com">COMMIT</span></div>
+          </div>
+          <div class="tx-row">
+            <div class="tx-cell safe"><span class="act sel">SELECT</span>&nbsp; balance → <strong style="color:var(--green)">1000</strong><br><span class="res">같은 Snapshot → 변하지 않음</span></div>
+            <div class="tx-cell empty">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert info ai">
+    <strong>Undo Log와의 연결</strong><br>MVCC는 Undo Log의 버전 체인을 따라가며 자신의 Read View에 맞는 과거 버전을 찾는다. REPEATABLE READ는 TX 전체 기간 동안 Read View를 유지하므로, Undo Log도 그만큼 오래 보관되어야 한다.
+  </div>
+</div>
+</section>
+
+<!-- S5: LOCK & CONCURRENCY -->
+<section class="article-section" id="lock">
+<div class="section-content">
+  <h2 class="stitle ai">동시성 문제는 <span class="hl">Lock</span>으로 해결한다</h2>
+  <p class="ssub ai">Isolation Level은 읽기 일관성 이야기다. 동시 쓰기 충돌은 Lock이나 원자적 연산으로 따로 해결해야 한다.</p>
+
+  <!-- Lost Update Scenario -->
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px;color:var(--red)">Lost Update: 동시 재고 차감 시나리오</h3>
+    <p class="body-text" style="margin-bottom:10px">재고 1개 남은 상품에 두 명이 동시에 주문. REPEATABLE READ여도 이 문제는 발생한다.</p>
+    <div class="tx-tl">
+      <div class="tx-hd t1">TX1</div>
+      <div class="tx-hd t2">TX2</div>
+      <div class="tx-row">
+        <div class="tx-cell"><span class="act sel">SELECT</span>&nbsp; stock → <strong>1</strong> (재고 있음)</div>
+        <div class="tx-cell empty">—</div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell empty">—</div>
+        <div class="tx-cell"><span class="act sel">SELECT</span>&nbsp; stock → <strong>1</strong> (재고 있음)</div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell"><span class="act upd">UPDATE</span>&nbsp; stock = 0</div>
+        <div class="tx-cell empty">—</div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell"><span class="act com">COMMIT</span></div>
+        <div class="tx-cell empty">—</div>
+      </div>
+      <div class="tx-row">
+        <div class="tx-cell empty">—</div>
+        <div class="tx-cell danger"><span class="act upd">UPDATE</span>&nbsp; stock = 0<br><span class="act com">COMMIT</span><br><span class="res">둘 다 성공 → 실제로는 2번 차감됨</span></div>
+      </div>
+    </div>
+    <div class="alert warn" style="margin-top:10px">
+      <strong>원인</strong><br>MVCC Snapshot은 <strong>읽기에만</strong> 적용된다. <strong>쓰기(UPDATE)는 항상 최신 데이터에 적용</strong>되므로 두 TX가 동시에 stock=1에서 1을 빼면 0이 두 번 쓰여진다.
+    </div>
+  </div>
+
+  <!-- Solutions -->
+  <div class="g2 ai">
+    <div class="card" style="padding:18px">
+      <h3 style="color:var(--red);margin-bottom:10px">비관적 Lock (Pessimistic)</h3>
+      <div class="code-block" style="margin-bottom:8px">
+        <pre><span class="ann">@Lock</span>(<span class="tp">LockModeType</span>.<span class="str">PESSIMISTIC_WRITE</span>)
+<span class="ann">@Query</span>(<span class="str">"SELECT p FROM Product p</span>
+<span class="str">        WHERE p.id = :id"</span>)
+<span class="tp">Product</span> <span class="fn">findByIdForUpdate</span>(
+    <span class="ann">@Param</span>(<span class="str">"id"</span>) <span class="tp">Long</span> id);</pre>
+      </div>
+      <p class="body-text"><strong style="color:var(--text)">SELECT ... FOR UPDATE</strong>로 행을 먼저 잠근다. 다른 TX는 Lock이 풀릴 때까지 대기.</p>
+    </div>
+    <div class="card" style="padding:18px">
+      <h3 style="color:var(--green);margin-bottom:10px">낙관적 Lock (Optimistic)</h3>
+      <div class="code-block" style="margin-bottom:8px">
+        <pre><span class="ann">@Entity</span>
+<span class="kw">public class</span> <span class="tp">Product</span> &#123;
+    <span class="ann">@Version</span>
+    <span class="kw">private</span> <span class="tp">Long</span> version;
+&#125;
+<span class="cm">// UPDATE product</span>
+<span class="cm">//   SET stock=9, version=2</span>
+<span class="cm">//   WHERE id=1 AND version=1</span>
+<span class="cm">// → version 불일치 시 예외</span></pre>
+      </div>
+      <p class="body-text"><strong style="color:var(--text)">@Version</strong>으로 커밋 시점에 충돌을 감지한다. 충돌 시 재시도 로직 필요.</p>
+    </div>
+  </div>
+
+  <div class="ai">
+    <table class="cmp-table">
+      <thead><tr><th>방식</th><th>동작</th><th>장점</th><th>단점</th><th>적합한 상황</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700;color:var(--red)">Pessimistic Lock</td>
+          <td>SELECT 시점에 Row Lock 획득</td>
+          <td><span class="badge good">확실한 순서 보장</span></td>
+          <td><span class="badge bad">Lock 대기 성능 저하</span></td>
+          <td>충돌이 자주 발생</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--green)">Optimistic Lock</td>
+          <td>COMMIT 시점에 Version 비교</td>
+          <td><span class="badge good">Lock 없이 높은 동시성</span></td>
+          <td><span class="badge mid">재시도 로직 필요</span></td>
+          <td>충돌이 드묾</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--cyan)">원자적 UPDATE</td>
+          <td>DB에서 조건부 차감</td>
+          <td><span class="badge good">가장 효율적</span></td>
+          <td>복잡한 로직 어려움</td>
+          <td>단순 차감 연산</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ai">
+    <div class="code-block">
+      <pre><span class="cm">// 방법 3: 원자적 UPDATE — 가장 효율적</span>
+<span class="ann">@Modifying</span>
+<span class="ann">@Query</span>(<span class="str">"UPDATE Product p SET p.stock = p.stock - 1</span>
+<span class="str">        WHERE p.id = :id AND p.stock > 0"</span>)
+<span class="kw">int</span> <span class="fn">decreaseStock</span>(<span class="ann">@Param</span>(<span class="str">"id"</span>) <span class="tp">Long</span> id);
+<span class="cm">// 반환값 0 → 재고 부족으로 처리</span></pre>
+    </div>
+  </div>
+
+  <div class="quote-box ai" style="border-left-color:var(--amber)">
+    <strong style="color:var(--amber)">"SERIALIZABLE은 전부 다 Lock이고, SELECT FOR UPDATE는 필요한 Row만 Lock이니까 후자가 훨씬 효율적이다."</strong><br>
+    Isolation Level을 올리는 것보다 필요한 곳에만 Lock을 거는 게 낫다.
+  </div>
+</div>
+</section>
+
+<!-- S6: PRACTICE -->
+<section class="article-section" id="practice">
+<div class="section-content">
+  <h2 class="stitle ai">실무 <span class="hl-g">가이드</span></h2>
+  <p class="ssub ai">대부분의 경우 DB 기본값을 그대로 쓰는 게 맞다. Isolation Level을 올려야 하는 경우는 매우 제한적이다.</p>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px">Spring/JPA에서 격리 수준 설정</h3>
+    <div class="code-block">
+      <pre><span class="cm">// 기본값: DB의 기본 Isolation Level을 따름</span>
+<span class="ann">@Transactional</span>
+<span class="kw">public void</span> <span class="fn">defaultIsolation</span>() &#123; ... &#125;
+
+<span class="cm">// 명시적으로 Isolation Level 지정</span>
+<span class="ann">@Transactional</span>(isolation = <span class="tp">Isolation</span>.<span class="str">READ_COMMITTED</span>)
+<span class="kw">public void</span> <span class="fn">readCommitted</span>() &#123; ... &#125;
+
+<span class="ann">@Transactional</span>(isolation = <span class="tp">Isolation</span>.<span class="str">REPEATABLE_READ</span>)
+<span class="kw">public void</span> <span class="fn">repeatableRead</span>() &#123; ... &#125;</pre>
+    </div>
+    <div class="alert warn" style="margin-top:10px">
+      <strong>주의</strong><br>@Transactional(isolation = ...)은 <strong>해당 TX에만</strong> 적용되고, TX 종료 후 이전 격리 수준으로 복원된다. 또한 기존 TX에 참여하는 경우(PROPAGATION_REQUIRED로 합류)에는 <strong>격리 수준 지정이 적용되지 않는다.</strong>
+    </div>
+  </div>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px">Isolation Level을 올리는 것보다 나은 대안</h3>
+    <table class="cmp-table">
+      <thead><tr><th>상황</th><th>고려할 수 있는 수준</th><th>더 나은 대안</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700">재고 차감 시 동시 요청</td>
+          <td>SERIALIZABLE</td>
+          <td><span class="badge good">비관적 Lock (SELECT FOR UPDATE)</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">포인트 잔액 조회 후 차감</td>
+          <td>SERIALIZABLE</td>
+          <td><span class="badge good">낙관적 Lock (Version 컬럼)</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">집계 보고서 일관성</td>
+          <td>REPEATABLE READ</td>
+          <td><span class="badge good">@Transactional(readOnly=true)</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ai">
+    <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px">DB별 기본 격리 수준</h3>
+    <table class="cmp-table">
+      <thead><tr><th>DB</th><th>기본 Isolation Level</th><th>MVCC</th><th>특이사항</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700;color:var(--cyan)">MySQL (InnoDB)</td>
+          <td><span class="badge" style="color:var(--cyan);background:var(--cyan-pale);border:1px solid var(--cyan-dim)">REPEATABLE READ</span></td>
+          <td><span class="badge good">지원</span></td>
+          <td>Next-Key Lock으로 Phantom Read 대부분 방지</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--amber)">Oracle</td>
+          <td><span class="badge mid">READ COMMITTED</span></td>
+          <td><span class="badge good">지원</span></td>
+          <td>REPEATABLE READ 미지원. RC / SERIALIZABLE / READ ONLY만 제공</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--green)">PostgreSQL</td>
+          <td><span class="badge mid">READ COMMITTED</span></td>
+          <td><span class="badge good">지원</span></td>
+          <td>RR에서 write-write 충돌 감지 시 오류 반환</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:#c4b5fd">SQL Server</td>
+          <td><span class="badge mid">READ COMMITTED</span></td>
+          <td><span class="badge mid">선택적</span></td>
+          <td>Snapshot Isolation이라는 별도 수준 제공</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="g2 ai">
+    <div class="pcard">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        DB별 기본값 차이
+      </h3>
+      <p>프로젝트에서 쓰는 DB가 뭐냐에 따라 기본 동작이 달라진다. MySQL에서 개발하다가 Oracle로 옮기면 격리 동작이 달라질 수 있다.</p>
+    </div>
+    <div class="pcard">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        PostgreSQL 주의
+      </h3>
+      <p>PostgreSQL의 RR은 write-write 충돌 시 오류를 반환한다. MySQL InnoDB는 이런 감지가 없으므로, 애플리케이션에서 Lock이나 원자적 UPDATE로 직접 해결해야 한다.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- S7: SUMMARY -->
+<section class="article-section" id="summary">
+<div class="section-content">
+  <h2 class="stitle ai"><span class="hl-g">최종 정리</span></h2>
+
+  <div class="ai">
+    <table class="cmp-table">
+      <thead><tr><th>관점</th><th style="color:var(--red)">READ<br>UNCOMMITTED</th><th style="color:var(--amber)">READ<br>COMMITTED</th><th style="color:var(--cyan)">REPEATABLE<br>READ</th><th style="color:var(--green)">SERIALIZABLE</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700">한마디 정의</td>
+          <td>아무거나 다 읽음</td>
+          <td>COMMIT된 것만 읽음</td>
+          <td>TX 시작 시점 기준</td>
+          <td>순서대로 실행</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Snapshot 생성</td>
+          <td>없음</td>
+          <td>매 쿼리마다</td>
+          <td>TX 시작 시 한 번</td>
+          <td>TX 시작 시 + Lock</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Dirty Read</td>
+          <td><span class="badge bad">발생</span></td>
+          <td><span class="badge good">방지</span></td>
+          <td><span class="badge good">방지</span></td>
+          <td><span class="badge good">방지</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Non-Repeatable</td>
+          <td><span class="badge bad">발생</span></td>
+          <td><span class="badge bad">발생</span></td>
+          <td><span class="badge good">방지</span></td>
+          <td><span class="badge good">방지</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Phantom Read</td>
+          <td><span class="badge bad">발생</span></td>
+          <td><span class="badge bad">발생</span></td>
+          <td><span class="badge mid">InnoDB: 대부분 방지</span></td>
+          <td><span class="badge good">방지</span></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">동시성</td>
+          <td>매우 높음</td>
+          <td>높음</td>
+          <td>보통</td>
+          <td>낮음</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">사용 DB</td>
+          <td>거의 없음</td>
+          <td>Oracle, PostgreSQL</td>
+          <td>MySQL (InnoDB)</td>
+          <td>특수 상황</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Undo Log 보유</td>
+          <td>즉시 Purge 가능</td>
+          <td>쿼리 단위 (짧음)</td>
+          <td>TX 전체 기간</td>
+          <td>TX 전체 + Lock</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="quote-box ai" style="border-left-color:var(--green)">
+    <strong style="color:var(--green)">"Isolation Level만으로는 부족하고, Lock 전략이랑 같이 써야 한다."</strong><br>
+    실무에서는 DB 기본 Isolation Level을 유지하면서, Lost Update나 동시 차감 같은 문제에는 Pessimistic/Optimistic Lock이나 원자적 UPDATE를 조합해서 해결하는 게 일반적이다.
+  </div>
+
+  <div class="sum-banner ai">
+    <h3>KEY TAKEAWAY</h3>
+    <p>Isolation Level은 <strong style="color:var(--cyan)">읽기 일관성</strong>을 결정하는 규칙이다.<br>
+    <strong style="color:var(--red)">쓰기 충돌</strong>은 Lock이나 원자적 연산으로 따로 해결해야 한다.<br>
+    대부분의 경우 <strong style="color:var(--green)">DB 기본값을 유지</strong>하고, 필요한 곳에만 Lock을 거는 것이 정답이다.</p>
+  </div>
+</div>
+</section>
+
+</BlogLayout>
+
+<style is:global>
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 20%,rgba(255,170,0,.05) 0%,transparent 50%),radial-gradient(ellipse at 80% 80%,rgba(0,212,255,.05) 0%,transparent 50%);pointer-events:none;z-index:0}
+
+/* ── TX TIMELINE ── */
+.tx-tl{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;background:var(--bg-card);margin-bottom:14px}
+.tx-hd{padding:10px 14px;font-size:12px;font-weight:700;text-align:center;background:var(--surface);border-bottom:1px solid var(--border);font-family:var(--font-mono);letter-spacing:.5px}
+.tx-hd:first-child{border-right:1px solid var(--border)}
+.tx-hd.t1{color:var(--cyan)}
+.tx-hd.t2{color:var(--amber)}
+.tx-row{display:contents}
+.tx-cell{padding:12px 14px;font-size:12px;line-height:2.1;border-bottom:1px solid rgba(30,42,74,.5);color:var(--text-sec);min-height:44px}
+.tx-row:last-child .tx-cell{border-bottom:none}
+.tx-cell:first-child{border-right:1px solid rgba(30,42,74,.5)}
+.tx-cell.empty{opacity:.3;display:flex;align-items:center}
+.tx-cell .act{font-family:var(--font-mono);font-weight:600;font-size:12px}
+.tx-cell .act.sel{color:var(--cyan)}
+.tx-cell .act.upd{color:var(--amber)}
+.tx-cell .act.ins{color:var(--green)}
+.tx-cell .act.com{color:var(--green);font-weight:700;display:inline-block;margin-top:2px}
+.tx-cell .act.rb{color:var(--red);font-weight:700;display:inline-block;margin-top:2px}
+.tx-cell .res{font-size:11px;color:var(--text-dim);display:block;margin-top:4px;line-height:1.6}
+.tx-cell.danger{background:var(--red-pale);border-left:2px solid var(--red)}
+.tx-cell.safe{background:var(--green-pale);border-left:2px solid var(--green)}
+.tx-cell.warn-bg{background:var(--amber-pale);border-left:2px solid var(--amber)}
+
+/* ── ISOLATION LEVEL CARD ── */
+.iso-card{background:var(--bg-card);border-radius:var(--r-lg);padding:18px;border:1px solid var(--border);text-align:center;transition:all .3s}
+.iso-card:hover{transform:translateY(-2px);border-color:var(--border-glow)}
+.iso-card .iso-lv{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.5px;margin-bottom:6px;padding:3px 10px;border-radius:12px;display:inline-block}
+.iso-card.lv0 .iso-lv{color:var(--red);background:var(--red-pale);border:1px solid var(--red-dim)}
+.iso-card.lv1 .iso-lv{color:var(--amber);background:var(--amber-pale);border:1px solid var(--amber-dim)}
+.iso-card.lv2 .iso-lv{color:var(--cyan);background:var(--cyan-pale);border:1px solid var(--cyan-dim)}
+.iso-card.lv3 .iso-lv{color:var(--green);background:var(--green-pale);border:1px solid var(--green-dim)}
+.iso-card h3{font-family:var(--font-display);font-size:14px;font-weight:700;margin:8px 0 6px}
+.iso-card.lv0 h3{color:var(--red)}
+.iso-card.lv1 h3{color:var(--amber)}
+.iso-card.lv2 h3{color:var(--cyan)}
+.iso-card.lv3 h3{color:var(--green)}
+.iso-card p{font-size:15px;color:var(--text-sec);line-height:1.7}
+.iso-card .iso-db{font-size:10px;color:var(--text-dim);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+
+/* ── SNAPSHOT COMPARE ── */
+.snap-box{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px;position:relative;overflow:hidden}
+.snap-box::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+.snap-box.rc::before{background:var(--amber)}
+.snap-box.rr::before{background:var(--cyan)}
+.snap-box h4{font-size:13px;font-weight:700;margin-bottom:10px}
+.snap-box.rc h4{color:var(--amber)}
+.snap-box.rr h4{color:var(--cyan)}
+.snap-dots{display:flex;align-items:center;gap:6px;margin:10px 0;flex-wrap:wrap}
+.snap-dot{width:28px;min-height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;font-family:var(--font-mono);border:2px solid var(--border);color:var(--text-dim);background:var(--surface)}
+.snap-dot.active{border-color:var(--cyan);color:var(--cyan);background:var(--cyan-pale);box-shadow:0 0 8px rgba(0,212,255,.3)}
+.snap-dot.active-a{border-color:var(--amber);color:var(--amber);background:var(--amber-pale);box-shadow:0 0 8px rgba(255,170,0,.3)}
+.snap-label{font-size:10px;color:var(--text-dim);font-family:var(--font-mono)}
+
+/* ── LOCK RANGE ── */
+.lock-viz{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px}
+.lock-row{display:flex;align-items:center;justify-content:center;gap:4px;margin:10px 0;flex-wrap:wrap}
+.lock-rec{width:44px;min-height:40px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:var(--font-mono);border:1px solid var(--border);background:var(--surface);color:var(--text-dim);transition:all .3s}
+.lock-rec.locked{border-color:var(--red-dim);color:var(--red);background:var(--red-pale)}
+.lock-gap{width:30px;min-height:30px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:var(--text-dim);border:1px dashed var(--border);background:transparent;transition:all .3s}
+.lock-gap.locked{border-color:var(--amber-dim);color:var(--amber);background:var(--amber-pale);border-style:solid}
+
+/* ── QUOTE BOX ── */
+.quote-box{background:var(--bg-card);border-left:3px solid var(--cyan);border-radius:0 var(--r-lg) var(--r-lg) 0;padding:18px 22px;margin:18px 0;font-size:14px;color:var(--text-sec);line-height:1.9;font-style:italic}
+.quote-box strong{color:var(--cyan);font-style:normal}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){.g2,.g3,.g4{grid-template-columns:1fr}.tx-tl{grid-template-columns:1fr}.tx-hd:first-child{border-right:none}.tx-cell:first-child{border-right:none}.lock-row{gap:2px}.lock-rec{width:36px;min-height:34px;font-size:9px}.lock-gap{width:22px;min-height:22px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
