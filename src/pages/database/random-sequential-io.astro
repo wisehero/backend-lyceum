@@ -278,7 +278,7 @@ const sections = [
 
   <div class="g2 ai" style="margin-top:14px">
     <div class="alert warn">
-      <strong>Optimizer 판단</strong><br>인덱스로 조회해야 할 행이 전체 테이블의 <strong>20~25% 이상</strong>이면, DB 옵티마이저는 인덱스 대신 <strong>Full Table Scan(Sequential)</strong>을 선택한다. Random I/O보다 순차 읽기가 더 빠르기 때문이다.
+      <strong>Optimizer 판단</strong><br>인덱스로 조회해야 할 행 비율이 커지면, DB 옵티마이저는 인덱스 대신 <strong>Full Table Scan(Sequential)</strong>을 선택할 수 있다. 흔히 <strong>20~25% 전후</strong>가 예시로 언급되지만, 실제 임계점은 통계 정보와 스토리지 특성에 따라 달라진다.
     </div>
     <div class="alert safe">
       <strong>Covering Index</strong><br>인덱스에 필요한 모든 컬럼을 포함하면, 테이블 접근 자체가 불필요하다. <strong>Random I/O = 0</strong>
@@ -416,7 +416,7 @@ const sections = [
 <section class="article-section" id="clustered-idx">
 <div class="section-content">
   <h2 class="stitle ai">Clustered Index와 <span class="hl-c">I/O 패턴</span></h2>
-  <p class="ssub ai">Clustered Index는 테이블 데이터 자체를 PK 순서로 물리적으로 정렬하여 저장한다.</p>
+  <p class="ssub ai">Clustered Index는 테이블 데이터가 PK 순서의 clustered 구조를 따르도록 저장한다. 디스크 상의 완전한 연속 배치를 항상 보장하는 것은 아니지만, 범위 조회와 순차 삽입에 유리하다.</p>
 
   <div class="g2 ai">
     <div class="io-viz">
@@ -432,7 +432,7 @@ const sections = [
         <div class="blk seq">5</div>
         <div class="blk seq">6</div>
       </div>
-      <p class="body-text" style="text-align:center">PK 순서 = 물리적 저장 순서<br><strong style="color:var(--green)">범위 조회 시 Sequential I/O</strong></p>
+      <p class="body-text" style="text-align:center">PK 순서에 맞춘 clustered 저장 구조<br><strong style="color:var(--green)">범위 조회에 순차 접근 친화적</strong></p>
     </div>
 
     <div class="io-viz">
@@ -448,7 +448,7 @@ const sections = [
         <div class="blk rnd">4</div>
         <div class="blk rnd">3</div>
       </div>
-      <p class="body-text" style="text-align:center">Secondary Index 순서 =/= 물리 순서<br><strong style="color:var(--red)">Table Lookup마다 Random I/O</strong></p>
+      <p class="body-text" style="text-align:center">Secondary Index 순서 =/= 데이터 페이지 배치<br><strong style="color:var(--red)">Table Lookup 시 Random I/O 가능성 증가</strong></p>
     </div>
   </div>
 
@@ -460,21 +460,21 @@ const sections = [
         <tr>
           <td style="font-weight:700;color:var(--green)">AUTO_INCREMENT</td>
           <td><strong style="color:var(--green)">순차 증가</strong></td>
-          <td><strong style="color:var(--green)">Sequential</strong></td>
+          <td><strong style="color:var(--green)">Sequential-friendly</strong></td>
           <td>페이지 분할 없음, Insert 빠름</td>
           <td>분산 환경에서 충돌 가능</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--red)">UUID (v4)</td>
           <td><strong style="color:var(--red)">완전 랜덤</strong></td>
-          <td><strong style="color:var(--red)">Random</strong></td>
+          <td><strong style="color:var(--red)">Random-heavy</strong></td>
           <td>전역 고유, 분산 환경에 적합</td>
           <td>페이지 분할 빈번, Insert 느림</td>
         </tr>
         <tr>
           <td style="font-weight:700;color:var(--amber)">ULID / UUID v7</td>
           <td><strong style="color:var(--amber)">시간순 정렬</strong></td>
-          <td><strong style="color:var(--green)">Sequential</strong></td>
+          <td><strong style="color:var(--green)">Mostly ordered</strong></td>
           <td>시간 순서 보장 + 전역 고유</td>
           <td>UUID v4 대비 구현 복잡</td>
         </tr>
@@ -483,7 +483,7 @@ const sections = [
   </div>
 
   <div class="alert info ai" style="margin-top:14px">
-    <strong>실무 권장</strong><br>MySQL InnoDB에서는 PK를 <strong>AUTO_INCREMENT</strong> 또는 <strong>ULID/UUID v7</strong>처럼 순차적인 값으로 설정하는 것이 I/O 효율에 유리하다.
+    <strong>실무 권장</strong><br>MySQL InnoDB에서는 PK를 <strong>AUTO_INCREMENT</strong> 또는 <strong>ULID/UUID v7</strong>처럼 <strong>시간 순서에 우호적인 값</strong>으로 잡는 것이 I/O 효율에 유리하다.
   </div>
 </div>
 </section>

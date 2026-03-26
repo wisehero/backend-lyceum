@@ -161,7 +161,7 @@ em.<span class="fn">flush</span>(); <span class="cm">// 이미 모두 전송됨 
 
   <div class="ai" style="margin-top:20px">
     <h3 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px">그럼에도 MySQL에서 가장 많이 쓰이는 이유</h3>
-    <p class="body-text">MySQL은 SEQUENCE 오브젝트를 지원하지 않아 SEQUENCE 전략을 쓸 수 없다. TABLE 전략은 Lock 경합 문제가 있다. AUTO 전략은 MySQL에서 결국 IDENTITY로 떨어진다. 결국 MySQL 환경에서는 IDENTITY가 사실상 유일한 현실적 선택지다. 단건 INSERT가 많은 OLTP 워크로드에서는 개별 INSERT가 크게 문제되지 않으며, 대량 INSERT가 필요한 경우에는 JdbcTemplate 우회로 해결한다.</p>
+    <p class="body-text">MySQL은 SEQUENCE 오브젝트를 지원하지 않아 <code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">GenerationType.SEQUENCE</code>를 직접 쓸 수 없다. 그래서 실무에서는 <strong style="color:var(--text)">명시적으로 IDENTITY를 선택</strong>하는 경우가 많다. 반면 <code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">AUTO</code>는 JPA provider/Hibernate 구현에 따라 sequence-style table 생성으로 해석될 수 있으므로, MySQL에서 "AUTO = IDENTITY"라고 가정하면 위험하다.</p>
   </div>
 </div>
 </section>
@@ -236,7 +236,7 @@ persist(member50); <span class="cm">// id=50, 메모리 캐시 사용</span>
 persist(member51); <span class="cm">// id=51, nextval 호출 (반환값: 100)</span></pre>
     </div>
     <div class="alert info ai" style="margin-top:12px">
-      <strong>allocationSize = DB의 INCREMENT BY와 반드시 일치해야 한다</strong><br>DB Sequence의 INCREMENT BY 값과 JPA의 allocationSize가 다르면 PK 중복 또는 누락이 발생한다. DDL에서 <code style="font-family:var(--font-mono);font-size:12px">CREATE SEQUENCE member_seq INCREMENT BY 50</code>으로 선언하고, allocationSize도 50으로 맞춰야 한다. Hibernate 6에서는 <strong>pooled</strong> 방식을 사용한다. DB Sequence의 현재 값이 "해당 블록의 최댓값"을 나타내는 방식으로, allocationSize=50이면 DB nextval이 50을 반환할 때 Hibernate는 1~50을 캐싱한다.
+      <strong>pooled 계열 최적화에서는 DB INCREMENT BY와 함께 보라</strong><br>Hibernate의 pooled / pooled-lo 최적화를 사용할 때는 DB Sequence의 <code style="font-family:var(--font-mono);font-size:12px">INCREMENT BY</code>와 <code style="font-family:var(--font-mono);font-size:12px">allocationSize</code>를 함께 검토해야 한다. 값이 어긋나면 startup validation 실패, 예상보다 큰 gap, 비효율적인 ID 할당이 생길 수 있다. DDL과 ORM 설정을 항상 세트로 관리하는 편이 안전하다.
     </div>
   </div>
 
@@ -377,7 +377,7 @@ persist(member51); <span class="cm">// id=51, nextval 호출 (반환값: 100)</s
     <table class="cmp-table">
       <thead>
         <tr>
-          <th>Hibernate 버전</th>
+          <th>해석 주체</th>
           <th>MySQL</th>
           <th>PostgreSQL / Oracle</th>
           <th>H2</th>
@@ -385,20 +385,14 @@ persist(member51); <span class="cm">// id=51, nextval 호출 (반환값: 100)</s
       </thead>
       <tbody>
         <tr>
-          <td style="font-weight:700">Hibernate 5.x</td>
-          <td><strong style="color:var(--amber)">TABLE 또는 IDENTITY</strong></td>
-          <td><strong style="color:var(--cyan)">SEQUENCE</strong></td>
-          <td><strong style="color:var(--cyan)">SEQUENCE</strong></td>
-        </tr>
-        <tr>
-          <td style="font-weight:700">Hibernate 6.x</td>
-          <td><strong style="color:var(--red)">IDENTITY</strong></td>
+          <td style="font-weight:700">Hibernate AUTO 해석</td>
+          <td><strong style="color:var(--amber)">sequence-style generator → table 기반 폴백 가능</strong></td>
           <td><strong style="color:var(--cyan)">SEQUENCE</strong></td>
           <td><strong style="color:var(--cyan)">SEQUENCE</strong></td>
         </tr>
       </tbody>
     </table>
-    <p class="body-text" style="margin-top:10px">Hibernate 5에서 6으로 업그레이드하면 MySQL에서 AUTO의 동작이 달라질 수 있다. 기존에 TABLE 전략으로 동작하던 코드가 IDENTITY로 전환되면서 PK 생성 방식 자체가 바뀐다.</p>
+    <p class="body-text" style="margin-top:10px">핵심은 버전 숫자보다 <strong style="color:var(--text)">AUTO 해석이 provider/dialect 의존</strong>이라는 점이다. MySQL에서 AUTO를 썼다면 실제로 어떤 generator가 선택됐는지 로그와 DDL을 확인해야 하며, 코드만 보고 IDENTITY라고 단정하면 안 된다.</p>
   </div>
 
   <div class="alert warn ai" style="margin-top:16px">
@@ -817,7 +811,7 @@ notification.member_id  <span class="cm">-- FK: BIGINT → BINARY(16)</span>
         <tr>
           <td style="font-weight:700">MySQL + 일반 OLTP</td>
           <td><strong style="color:var(--red)">IDENTITY</strong></td>
-          <td>MySQL 표준, 설정 단순, 단건 INSERT에 충분</td>
+          <td>명시적 선택이 가장 예측 가능, 단건 INSERT에 충분</td>
         </tr>
         <tr>
           <td style="font-weight:700">MySQL + 대량 INSERT 빈번</td>
@@ -841,8 +835,8 @@ notification.member_id  <span class="cm">-- FK: BIGINT → BINARY(16)</span>
         </tr>
         <tr>
           <td style="font-weight:700">실무 비권장</td>
-          <td><strong style="color:var(--text-dim)">TABLE / AUTO</strong></td>
-          <td>TABLE은 Lock 경합, AUTO는 예측 불가</td>
+          <td><strong style="color:var(--text-dim)">TABLE / 무심코 쓰는 AUTO</strong></td>
+          <td>TABLE은 Lock 경합, AUTO는 provider 해석 의존</td>
         </tr>
       </tbody>
     </table>
@@ -861,8 +855,8 @@ notification.member_id  <span class="cm">-- FK: BIGINT → BINARY(16)</span>
       <div class="def-row">
         <span class="def-step">2</span>
         <div>
-          <strong style="color:var(--cyan)">SEQUENCE allocationSize — DB INCREMENT BY와 반드시 일치</strong>
-          <p class="body-text" style="margin-top:4px">불일치 시 PK 충돌 또는 누락이 발생한다. DDL 마이그레이션 시 두 설정을 함께 변경해야 한다.</p>
+          <strong style="color:var(--cyan)">SEQUENCE allocationSize — DDL과 ORM 설정을 함께 관리</strong>
+          <p class="body-text" style="margin-top:4px">pooled 계열 최적화에서는 DB INCREMENT BY와 allocationSize를 같이 맞춰보는 것이 안전하다. DDL 마이그레이션 시 두 설정을 함께 변경해야 한다.</p>
         </div>
       </div>
       <div class="def-row">

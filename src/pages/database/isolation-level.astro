@@ -171,7 +171,7 @@ const sections = [
     <div class="iso-card lv2">
       <span class="iso-lv">LEVEL 2</span>
       <h3>REPEATABLE READ</h3>
-      <p>TX 시작 시점의 Snapshot 기준으로 읽는다. 같은 쿼리는 항상 같은 결과.</p>
+      <p>첫 non-locking SELECT에서 만든 Snapshot 기준으로 읽는다. 같은 쿼리는 항상 같은 결과.</p>
       <div class="iso-db">MySQL (InnoDB) 기본</div>
     </div>
     <div class="iso-card lv3">
@@ -247,7 +247,7 @@ const sections = [
     </div>
     <div class="snap-box rr">
       <h4>REPEATABLE READ</h4>
-      <p class="body-text" style="margin-bottom:10px">첫 번째 읽기 시 <strong style="color:var(--cyan)">단 한 번</strong> Snapshot을 생성하고, TX 끝까지 재사용한다.</p>
+      <p class="body-text" style="margin-bottom:10px">첫 번째 non-locking SELECT 시 <strong style="color:var(--cyan)">단 한 번</strong> Snapshot을 생성하고, TX 끝까지 재사용한다.</p>
       <div class="snap-dots">
         <span class="snap-label">SELECT 1</span>
         <div class="snap-dot active">S1</div>
@@ -275,9 +275,9 @@ const sections = [
           <td><strong style="color:var(--green)">항상 같은 결과</strong></td>
         </tr>
         <tr>
-          <td style="font-weight:700">Undo Log 참조</td>
+          <td style="font-weight:700">Undo Log 참조 기준</td>
           <td>최신 COMMIT 기준</td>
-          <td>TX 시작 시점 기준</td>
+          <td>첫 Read View 시점 기준</td>
         </tr>
         <tr>
           <td style="font-weight:700">기본 DB</td>
@@ -313,8 +313,8 @@ const sections = [
 
   <div class="alert warn ai">
     <strong>주의 — 읽기 방식에 따라 다르다</strong><br><br>
-    <strong>일반 SELECT</strong>: MVCC Snapshot으로 Phantom 방지 (스냅샷 이후 INSERT된 행이 안 보임)<br>
-    <strong>SELECT ... FOR UPDATE</strong>: Next-Key Lock으로 Phantom 방지 (INSERT 자체를 차단)<br>
+    <strong>일반 SELECT</strong>: MVCC Snapshot으로 "내 Read View 기준" Phantom을 피한다<br>
+    <strong>SELECT ... FOR UPDATE</strong>: Next-Key Lock으로 INSERT 자체를 차단한다<br>
     두 방식을 <strong>혼용하면</strong> 서로 다른 기준으로 읽기 때문에 결과가 달라질 수 있다.
   </div>
 </div>
@@ -552,7 +552,7 @@ const sections = [
         <tr>
           <td style="font-weight:700">집계 보고서 일관성</td>
           <td>REPEATABLE READ</td>
-          <td><strong style="color:var(--green)">@Transactional(readOnly=true)</strong></td>
+          <td><strong style="color:var(--green)">스냅샷 테이블 / Materialized View / 보고서 전용 Replica</strong></td>
         </tr>
       </tbody>
     </table>
@@ -630,7 +630,7 @@ const sections = [
           <td style="font-weight:700">Snapshot 생성</td>
           <td>없음</td>
           <td>매 쿼리마다</td>
-          <td>TX 시작 시 한 번</td>
+          <td>첫 일관성 읽기 시 한 번</td>
           <td>TX 시작 시 + Lock</td>
         </tr>
         <tr>

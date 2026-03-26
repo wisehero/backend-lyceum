@@ -744,12 +744,12 @@ spring:
         </tr>
         <tr>
           <td>충돌 → UPDATE (값 동일)</td>
-          <td style="font-family:var(--font-mono);color:var(--text-dim)">0</td>
-          <td>변경 없음 (useAffectedRows=true 시)</td>
+          <td style="font-family:var(--font-mono);color:var(--text-dim)">0 또는 1</td>
+          <td>드라이버 설정에 따라 "changed rows" 또는 "found rows"</td>
         </tr>
       </tbody>
     </table>
-    <p style="font-size:16px;color:var(--text-sec);line-height:1.8;margin-top:10px">MySQL Connector/J의 기본 설정(<code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">useAffectedRows=false</code>)에서는 값이 바뀌지 않아도 UPDATE가 일어났으면 affected rows=2를 반환한다. <code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">useAffectedRows=true</code>로 바꾸면 실제로 변경된 행만 카운트한다.</p>
+    <p style="font-size:16px;color:var(--text-sec);line-height:1.8;margin-top:10px">MySQL 서버 기준으로 <strong style="color:var(--text)">실제 값이 바뀐 UPDATE는 2</strong>, <strong style="color:var(--text)">값이 동일한 no-op UPDATE는 0</strong>이다. 다만 Connector/J는 <code style="font-family:var(--font-mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px">useAffectedRows</code> 설정에 따라 changed rows / found rows 해석이 달라질 수 있어, no-op UPDATE가 1로 보일 수도 있다.</p>
   </div>
 
   <div class="ai">
