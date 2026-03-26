@@ -44,7 +44,7 @@ export const categories: Category[] = [
     key: 'redis',
     name: 'Redis',
     href: '/redis',
-    accentColor: 'green',
+    accentColor: 'red',
     lectures: [
       { title: '캐시 강의', subtitle: '캐시의 개념과 동작 원리', href: '/cache/cache-lecture' },
       { title: '캐시 동기화', subtitle: '캐시와 DB 간의 일관성 유지 전략', href: '/cache/cache-sync' },
