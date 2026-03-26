@@ -24,7 +24,7 @@ export const categories: Category[] = [
     key: 'spring',
     name: 'Spring Ecosystem',
     href: '/spring',
-    accentColor: 'cyan',
+    accentColor: 'green',
     lectures: [],
   },
   {
