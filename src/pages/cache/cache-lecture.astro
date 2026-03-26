@@ -218,19 +218,9 @@ const sections = [
   </div>
   <div class="g2 ai">
     <div>
-      <div class="ttl-box">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <h4 style="font-size:14px;font-weight:700;color:var(--cyan)">TTL (Time To Live)</h4>
-          <span style="font-size:12px;color:var(--text-dim);font-family:var(--font-mono)" id="ttlT">30.0s</span>
-        </div>
-        <div class="ttl-trk"><div class="ttl-fill alive" id="ttlB" style="width:100%"><span id="ttlTx">유효</span></div></div>
-        <div class="ttl-lbl"><span>저장 시점</span><span>만료</span></div>
-        <div class="ttl-btns">
-          <button class="tb on" onclick="setTTL(30)">30s</button>
-          <button class="tb" onclick="setTTL(15)">15s</button>
-          <button class="tb" onclick="setTTL(10)">10s</button>
-          <button class="tb" onclick="rstTTL()">RESET</button>
-        </div>
+      <div class="card">
+        <h3 style="color:var(--cyan)">TTL (Time To Live)</h3>
+        <p>캐시 데이터에 유효 시간을 설정하여, 시간이 지나면 자동으로 만료시키는 방식이다. 만료된 데이터에 접근하면 캐시 미스가 발생하고, 원본에서 새로운 데이터를 가져와 다시 캐싱한다. TTL이 너무 짧으면 캐시 효과가 줄어들고, 너무 길면 오래된 데이터를 반환할 수 있다.</p>
       </div>
       <div class="card">
         <h3 style="color:var(--green)">능동적 무효화</h3>
@@ -520,19 +510,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .tmeta{text-align:right;font-size:11px;font-weight:600}
 .tspd{color:var(--green);margin-bottom:2px;font-family:var(--font-mono)}.tsz{color:var(--text-dim);font-family:var(--font-mono)}
 
-/* ── TTL DEMO ── */
-.ttl-box{background:var(--bg-card);border-radius:var(--r-xl);padding:22px;border:1px solid var(--border);margin-bottom:14px}
-.ttl-trk{min-height:34px;background:var(--surface);border-radius:17px;overflow:hidden;border:1px solid var(--border);margin:12px 0 8px}
-.ttl-fill{height:100%;min-height:34px;border-radius:17px;display:flex;align-items:center;padding:0 14px;font-size:12px;font-weight:600;transition:width .1s linear;font-family:var(--font-body)}
-.ttl-fill.alive{background:linear-gradient(90deg,var(--green),var(--cyan));color:var(--bg)}
-.ttl-fill.expiring{background:linear-gradient(90deg,var(--amber),var(--red));color:var(--bg)}
-.ttl-fill.expired{background:var(--red);color:#fff}
-.ttl-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:10px}
-.ttl-btns{display:flex;gap:6px;flex-wrap:wrap}
-.tb{min-height:32px;padding:5px 14px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text-sec);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer;transition:all .25s}
-.tb:hover{border-color:var(--cyan);color:var(--cyan)}
-.tb.on{background:var(--cyan-pale);color:var(--cyan);border-color:var(--cyan-dim)}
-
 /* ── LRU SIMULATOR ── */
 .lru-box{background:var(--bg-card);border-radius:var(--r-xl);padding:22px;border:1px solid var(--border)}
 .lru-slots{display:flex;gap:8px;margin:12px 0}
@@ -623,7 +600,36 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .sv-log .hl-g{color:var(--green)}.sv-log .hl-r{color:var(--red)}
 
 /* ── RESPONSIVE ── */
-@media(max-width:768px){.g2,.g3,.g4{grid-template-columns:1fr}.pc{grid-template-columns:1fr}.mlflow{flex-direction:column}.anflow{flex-direction:column}}
+@media(max-width:768px){
+  .g2,.g3,.g4{grid-template-columns:1fr}
+  .pc{grid-template-columns:1fr}
+  /* 플로우 스텝 (Cache Hit/Miss) — 가로 유지, 스크롤 허용 */
+  .fsteps{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px;justify-content:flex-start}
+  .fnode{min-width:60px;padding:8px 10px;font-size:11px;flex-shrink:0}
+  .fa{flex-shrink:0;font-size:12px}
+  /* 비유 플로우 — 가로 유지, 스크롤 */
+  .anflow{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+  .fbox{min-width:80px;flex-shrink:0;font-size:11px;padding:10px 12px}
+  .farr{flex-shrink:0}
+  /* 멀티레벨 플로우 — 가로 유지, 스크롤 */
+  .mlflow{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+  .mlnode{min-width:100px;flex-shrink:0;font-size:12px;padding:10px 14px}
+  .mlarr{flex-shrink:0}
+  /* 전략 애니메이션 — 가로 유지, 스크롤 */
+  .acanvas{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+  .anode{min-width:60px;flex-shrink:0}
+  .aline{flex-shrink:0}
+  /* 적용 계층 행 — 가로 유지, 텍스트 줄바꿈 방지 */
+  .trow{grid-template-columns:36px 1fr auto;gap:10px;padding:10px 14px}
+  .tinfo h3{font-size:13px;white-space:nowrap}
+  .tinfo p{font-size:13px}
+  .tmeta{white-space:nowrap}
+  /* 바 차트 */
+  .blbl{min-width:65px;font-size:11px}
+  /* 비교 패널 (로컬 vs 리모트) */
+  .crow{font-size:11px}
+  .crow .v{word-break:keep-all}
+}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 
@@ -640,31 +646,6 @@ function swTab(t){
     document.getElementById('p-miss').classList.add('on');
   }
 }
-
-// ── TTL DEMO (S5) ──
-let ttlI=null,ttlT=30,ttlR=30;
-function startTTL(){
-  clearInterval(ttlI);ttlR=ttlT;uTTL();
-  ttlI=setInterval(()=>{ttlR-=.1;if(ttlR<=0){ttlR=0;clearInterval(ttlI)}uTTL()},100);
-}
-function uTTL(){
-  const b=document.getElementById('ttlB'),tx=document.getElementById('ttlTx'),tm=document.getElementById('ttlT');
-  if(!b||!tx||!tm)return;
-  const p=(ttlR/ttlT)*100;
-  b.style.width=p+'%';
-  tm.textContent=ttlR.toFixed(1)+'s';
-  if(ttlR<=0){b.className='ttl-fill expired';tx.textContent='만료됨'}
-  else if(p<25){b.className='ttl-fill expiring';tx.textContent='만료 임박'}
-  else{b.className='ttl-fill alive';tx.textContent='유효'}
-}
-function setTTL(v){
-  ttlT=v;
-  document.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
-  event.target.classList.add('on');
-  startTTL();
-}
-function rstTTL(){startTTL()}
-startTTL();
 
 // ── LRU SIMULATOR (S5) ──
 let lru=[],CAP=4;
@@ -778,7 +759,6 @@ function showS(key){
 
 // Cleanup on navigation
 document.addEventListener('astro:before-swap', () => {
-  if(ttlI) clearInterval(ttlI);
   if(sAnim) clearTimeout(sAnim);
 }, { once: true });
 </script>

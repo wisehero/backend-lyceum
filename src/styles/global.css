@@ -66,7 +66,7 @@
   --glow-cyan:0 0 20px rgba(0,212,255,.2);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font-body);background:var(--bg);color:var(--text);line-height:1.8}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);line-height:1.8;word-break:keep-all}
 
 /* grid bg — subtle, reading-friendly */
 body::before{content:'';position:fixed;inset:0;background:
