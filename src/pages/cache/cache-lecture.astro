@@ -627,7 +627,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 
-<script>
+<script is:inline>
 // ── FLOW TABS (S3) ──
 function swTab(t){
   document.querySelectorAll('.ftab').forEach(b=>b.classList.remove('on'));
