@@ -31,8 +31,8 @@ const sections = [
 
   <div class="stampede-viz ai">
     <div class="sv-header">
-      <div class="sv-title">SYSTEM MONITOR</div>
-      <div class="sv-status ok" id="svStat">NORMAL</div>
+      <div class="sv-title">시스템 모니터</div>
+      <div class="sv-status ok" id="svStat">정상</div>
     </div>
     <div class="sv-gauge">
       <div class="sv-gauge-label">TTL</div>
@@ -54,17 +54,17 @@ const sections = [
       </div>
       <div class="sv-db">
         <div class="sv-db-box ok" id="svDb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>DB</div>
-        <div class="sv-db-impact" id="svImpact">OVERLOAD</div>
+        <div class="sv-db-impact" id="svImpact">과부하</div>
       </div>
     </div>
-    <div class="sv-log" id="svLog">[ READY ] Press play to simulate the Stampede</div>
+    <div class="sv-log" id="svLog">[ 대기 ] 버튼을 눌러 스탬피드를 시뮬레이션하세요</div>
     <div class="sv-ctrl">
-      <button class="sv-btn pri" onclick="svPlay()">SIMULATE</button>
-      <button class="sv-btn" onclick="svReset()">RESET</button>
+      <button class="sv-btn pri" onclick="svPlay()">재현하기</button>
+      <button class="sv-btn" onclick="svReset()">초기화</button>
     </div>
   </div>
 
-  <div class="alert ai" style="margin-top:20px"><strong>핵심</strong><br>단 1개의 요청만 DB를 갔다 오면 나머지는 그 결과를 공유할 수 있는데, 그 조율이 없는 것이 문제다. — Thundering Herd 문제의 캐시 특화 사례</div>
+  <div class="alert ai" style="margin-top:20px"><strong>핵심</strong><br>단 1개의 요청만 DB를 갔다 오면 나머지는 그 결과를 공유할 수 있는데, 그 조율이 없는 것이 문제다.</div>
 </div>
 </section>
 
@@ -74,19 +74,31 @@ const sections = [
   <h2 class="stitle ai">전략 1: <span class="hl-g">Mutex Lock</span></h2>
   <p class="ssub ai">오직 하나의 스레드만 DB 조회 권한을 획득하고, 나머지는 짧은 시간 대기 후 갱신된 캐시를 읽는다.</p>
 
-  <div class="sf-diagram ai">
-    <div class="sv-header"><div class="sv-title">MUTEX LOCK FLOW</div></div>
-    <div class="sf-steps">
-      <div class="sf-step" id="mx0"><div class="sf-num">1</div><div><div class="sf-text">N개 요청 도착, Cache MISS 발생</div><div class="sf-sub">GET cache:today_deals → null</div></div></div>
-      <div class="sf-step" id="mx1"><div class="sf-num">2</div><div><div class="sf-text">모든 요청이 동시에 SETNX 락 시도</div><div class="sf-sub">SETNX lock:today_deals "locked" EX 5</div></div></div>
-      <div class="sf-step" id="mx2"><div class="sf-num">3</div><div><div class="sf-text">단 1개만 락 획득 성공, 나머지는 대기</div><div class="sf-sub">Thread-1: true ✓ | Thread-2~N: false → sleep(50ms)</div></div></div>
-      <div class="sf-step" id="mx3"><div class="sf-num">4</div><div><div class="sf-text">승리자가 DB 조회 → 캐시 갱신 → 락 해제</div><div class="sf-sub">SELECT * FROM deals → SET cache:today_deals → DEL lock</div></div></div>
-      <div class="sf-step" id="mx4"><div class="sf-num">5</div><div><div class="sf-text">대기 중이던 요청들이 갱신된 캐시에서 HIT</div><div class="sf-sub">GET cache:today_deals → data ✓</div></div></div>
+  <div class="mx-diagram ai">
+    <div class="mx-actors">
+      <div class="mx-actor cl">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        요청 N개
+      </div>
+      <div class="mx-actor sv">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        서버
+      </div>
+      <div class="mx-actor rd">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Redis
+      </div>
+      <div class="mx-actor db">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        DB
+      </div>
     </div>
-    <div class="sf-ctrl">
-      <button class="sf-btn pri" onclick="mxPlay()">PLAY</button>
-      <button class="sf-btn" onclick="mxStep()">STEP</button>
-      <button class="sf-btn" onclick="mxReset()">RESET</button>
+    <div class="mx-flows">
+      <div class="mx-flow miss"><span class="mx-num">1</span><span class="mx-arrow">→</span> GET key → <strong style="color:var(--red)">MISS</strong></div>
+      <div class="mx-flow lock"><span class="mx-num">2</span><span class="mx-arrow">→</span> SETNX lock → <strong style="color:var(--green)">1개 성공</strong> / 나머지 대기</div>
+      <div class="mx-flow query"><span class="mx-num">3</span><span class="mx-arrow">→</span> 락 획득자만 DB 조회</div>
+      <div class="mx-flow update"><span class="mx-num">4</span><span class="mx-arrow">←</span> 결과를 캐시에 SET + 락 DEL</div>
+      <div class="mx-flow hit"><span class="mx-num">5</span><span class="mx-arrow">←</span> 대기 요청들 캐시 <strong style="color:var(--green)">HIT</strong></div>
     </div>
   </div>
 
@@ -179,17 +191,17 @@ const sections = [
   <p class="ssub ai">"캐시가 비는 상황 자체를 만들지 말자" — 스케줄러가 TTL 만료 전에 주기적으로 캐시를 갱신한다.</p>
 
   <div class="tl-proactive ai">
-    <div class="sv-header"><div class="sv-title">CACHE LIFECYCLE TIMELINE</div><div class="sv-status ok">ALWAYS FILLED</div></div>
+    <div class="sv-header"><div class="sv-title">캐시 생명주기 타임라인</div><div class="sv-status ok">항상 유효</div></div>
     <div class="tl-track" id="tlTrack">
-      <div class="tl-segment filled" id="tlSeg0">TTL 60s<div class="tl-marker" style="right:33%">@40s REFRESH</div></div>
-      <div class="tl-segment" id="tlSeg1">TTL 60s<div class="tl-marker" style="right:33%">@40s REFRESH</div></div>
-      <div class="tl-segment" id="tlSeg2">TTL 60s<div class="tl-marker" style="right:33%">@40s REFRESH</div></div>
+      <div class="tl-segment filled" id="tlSeg0">TTL 60s<div class="tl-marker" style="right:33%">@40s 갱신</div></div>
+      <div class="tl-segment" id="tlSeg1">TTL 60s<div class="tl-marker" style="right:33%">@40s 갱신</div></div>
+      <div class="tl-segment" id="tlSeg2">TTL 60s<div class="tl-marker" style="right:33%">@40s 갱신</div></div>
     </div>
     <div class="tl-label"><span>0s</span><span>60s</span><span>120s</span><span>180s</span></div>
-    <div class="sv-log" id="tlLog" style="margin-top:12px">[ INFO ] Cache always has data → <span class="hl-g">Stampede probability = 0</span></div>
+    <div class="sv-log" id="tlLog" style="margin-top:12px">[ 정보 ] 캐시에 항상 데이터가 존재 → <span class="hl-g">스탬피드 발생 확률 = 0</span></div>
     <div class="sv-ctrl" style="margin-top:12px">
-      <button class="sv-btn pri" onclick="tlPlay()">ANIMATE</button>
-      <button class="sv-btn" onclick="tlReset()">RESET</button>
+      <button class="sv-btn pri" onclick="tlPlay()">재현하기</button>
+      <button class="sv-btn" onclick="tlReset()">초기화</button>
     </div>
   </div>
 
@@ -411,6 +423,25 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .d-opt.maybe{border-color:var(--amber-dim)}.d-opt.maybe h4{color:var(--amber)}
 .d-arr{color:var(--text-dim);font-size:18px}
 
+/* ── MUTEX DIAGRAM ── */
+.mx-diagram{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px;overflow-x:auto}
+.mx-actors{display:flex;justify-content:space-between;gap:12px;margin-bottom:20px;min-width:500px}
+.mx-actor{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 10px;border-radius:var(--r-lg);font-size:13px;font-weight:700;text-align:center;border:1px solid var(--border);background:var(--surface)}
+.mx-actor svg{width:24px;height:24px}
+.mx-actor.cl{color:var(--text);border-color:var(--border)}
+.mx-actor.sv{color:var(--cyan);border-color:var(--cyan-dim);background:var(--cyan-pale)}
+.mx-actor.rd{color:var(--red);border-color:var(--red-dim);background:var(--red-pale)}
+.mx-actor.db{color:#c4b5fd;border-color:rgba(124,58,237,.3);background:rgba(124,58,237,.12)}
+.mx-flows{display:flex;flex-direction:column;gap:8px;min-width:500px}
+.mx-flow{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);font-size:14px;color:var(--text-sec);line-height:1.6}
+.mx-num{width:22px;height:22px;border-radius:50%;background:var(--cyan);color:var(--bg);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mx-flow.miss .mx-num{background:var(--red)}
+.mx-flow.lock .mx-num{background:var(--amber)}
+.mx-flow.query .mx-num{background:#c4b5fd}
+.mx-flow.update .mx-num{background:var(--green)}
+.mx-flow.hit .mx-num{background:var(--green)}
+.mx-arrow{font-family:var(--font-mono);font-weight:700;color:var(--text-dim);flex-shrink:0}
+
 /* ── RESPONSIVE (file-specific) ── */
 @media(max-width:768px){.sv-arena{flex-direction:column;gap:12px}.sv-arrows{min-width:auto;flex-direction:row;min-height:60px;padding:8px 0}.sv-arr-row{width:36px;height:auto;flex-direction:column}.d-opts{flex-direction:column}}
 </style>
@@ -426,9 +457,9 @@ function svReset(){
   svRun=false;svTtl=60;
   $('svFill').style.width='100%';$('svFill').className='sv-gauge-fill';
   $('svVal').textContent='60s';$('svVal').className='sv-gauge-val ok';
-  $('svStat').textContent='NORMAL';$('svStat').className='sv-status ok';
+  $('svStat').textContent='정상';$('svStat').className='sv-status ok';
   $('svDb').className='sv-db-box ok';$('svImpact').classList.remove('vis');
-  $('svLog').innerHTML='[ READY ] Press play to simulate the Stampede';
+  $('svLog').innerHTML='[ 대기 ] 버튼을 눌러 스탬피드를 시뮬레이션하세요';
   for(let i=0;i<4;i++){
     $('svC'+i).classList.remove('rush');
     $('svA'+i).classList.remove('vis');
@@ -439,7 +470,7 @@ function svReset(){
 }
 function svPlay(){
   if(svRun)return;svReset();svRun=true;
-  $('svLog').innerHTML='[ <span class="hl-g">MONITORING</span> ] TTL countdown in progress...';
+  $('svLog').innerHTML='[ <span class="hl-g">모니터링</span> ] TTL 카운트다운 진행 중...';
   svInt=setInterval(()=>{
     svTtl--;
     const p=svTtl/60*100;
@@ -447,15 +478,15 @@ function svPlay(){
     $('svFill').className='sv-gauge-fill'+(p<25?' low':p<50?' mid':'');
     $('svVal').textContent=svTtl+'s';
     $('svVal').className='sv-gauge-val'+(svTtl<15?' crit':svTtl<30?' warn':' ok');
-    if(svTtl<=15){$('svStat').textContent='WARNING';$('svStat').className='sv-status danger'}
+    if(svTtl<=15){$('svStat').textContent='경고';$('svStat').className='sv-status danger'}
     if(svTtl<=0){clearInterval(svInt);svInt=null;svHit()}
   },80);
 }
 function svHit(){
   $('svFill').style.width='0%';$('svFill').className='sv-gauge-fill dead';
   $('svVal').textContent='EXPIRED';$('svVal').className='sv-gauge-val crit';
-  $('svStat').textContent='DANGER';$('svStat').className='sv-status danger';
-  $('svLog').innerHTML='[ <span class="hl-r">ALERT</span> ] Cache MISS — All requests heading to DB!';
+  $('svStat').textContent='위험';$('svStat').className='sv-status danger';
+  $('svLog').innerHTML='[ <span class="hl-r">경고</span> ] 캐시 MISS — 모든 요청이 DB로 직행!';
 
   svTimers.push(setTimeout(()=>{
     const delays=[0,100,180,280];
@@ -471,41 +502,28 @@ function svHit(){
     svTimers.push(setTimeout(()=>{
       $('svDb').className='sv-db-box stressed';
       $('svImpact').classList.add('vis');
-      $('svLog').innerHTML='[ <span class="hl-r">DANGER</span> ] DB overload — N concurrent queries exploding!';
+      $('svLog').innerHTML='[ <span class="hl-r">위험</span> ] DB 과부하 — N개의 동시 쿼리 폭주!';
     },600));
     svTimers.push(setTimeout(()=>{
-      $('svLog').innerHTML='[ <span class="hl-r">ROOT CAUSE</span> ] Only 1 DB trip needed, but there is no coordination mechanism';
+      $('svLog').innerHTML='[ <span class="hl-r">근본 원인</span> ] DB 조회는 1번이면 충분하지만, 조율 메커니즘이 없다';
       svRun=false;
     },2500));
   },300));
 }
 
-// ── MUTEX FLOW ──
-let mxS=0,mxAuto=null;
-const mxClasses=['lit','lit','lit-red','lit-green','lit-green'];
-function mxClr(){for(let i=0;i<5;i++)$('mx'+i).className='sf-step';mxS=0}
-function mxDoStep(){
-  if(mxS>=5){mxClr();return}
-  $('mx'+mxS).classList.add(mxClasses[mxS]);
-  mxS++;
-}
-function mxStep(){if(mxAuto){clearInterval(mxAuto);mxAuto=null}mxDoStep()}
-function mxPlay(){mxClr();if(mxAuto){clearInterval(mxAuto);mxAuto=null}mxAuto=setInterval(()=>{if(mxS>=5){clearInterval(mxAuto);mxAuto=null;return}mxDoStep()},1200)}
-function mxReset(){if(mxAuto){clearInterval(mxAuto);mxAuto=null}mxClr()}
-
 // ── PROACTIVE TIMELINE ──
 let tlAnim=null,tlStep=0;
 function tlReset(){if(tlAnim){clearInterval(tlAnim);tlAnim=null}tlStep=0;
   for(let i=0;i<3;i++){const s=$('tlSeg'+i);s.className='tl-segment'+(i===0?' filled':'')}
-  $('tlLog').innerHTML='[ INFO ] Cache always has data → <span class="hl-g">Stampede probability = 0</span>'}
+  $('tlLog').innerHTML='[ 정보 ] 캐시에 항상 데이터가 존재 → <span class="hl-g">스탬피드 발생 확률 = 0</span>'}
 function tlPlay(){tlReset();
   tlAnim=setInterval(()=>{
     const seg=$('tlSeg'+tlStep);
     seg.classList.add('filled');
-    $('tlLog').innerHTML='[ <span class="hl-g">REFRESH</span> ] Segment '+(tlStep+1)+' — Scheduler refreshed before TTL expiry';
+    $('tlLog').innerHTML='[ <span class="hl-g">갱신</span> ] 구간 '+(tlStep+1)+' — 스케줄러가 TTL 만료 전에 캐시를 갱신';
     tlStep++;
     if(tlStep>=3){clearInterval(tlAnim);tlAnim=null;
-      setTimeout(()=>{$('tlLog').innerHTML='[ <span class="hl-g">RESULT</span> ] Cache always has data → Stampede probability = 0'},800)}
+      setTimeout(()=>{$('tlLog').innerHTML='[ <span class="hl-g">결과</span> ] 캐시에 항상 데이터가 존재 → 스탬피드 발생 확률 = 0'},800)}
   },1200);
 }
 </script>
